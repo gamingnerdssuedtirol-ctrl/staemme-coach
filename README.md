@@ -1,39 +1,23 @@
-# Stämme Coach PWA v0.1
+# Stämme Coach PWA v0.2
 
-Diese Version ist speziell dafür gedacht, ohne PC auf Android getestet zu werden.
+Version 0.2 behebt das Zwischenablageproblem in Firefox Android.
 
-## Soforttest ohne Hosting
+## Installation über GitHub
 
-Die Datei `index.html` kann auf Android aus einem Dateimanager im Browser geöffnet werden. Dabei funktionieren Dashboard, lokaler Speicher, JSON-Import und Demodaten. Die Installation als echte PWA sowie der Offline-Service-Worker benötigen später eine HTTPS-Adresse.
+Lade alle Dateien aus diesem ZIP in dein vorhandenes Repository `staemme-coach` hoch und ersetze die bisherigen Dateien.
 
-## Datenübernahme ohne Zahlen abzutippen
+Danach öffne:
 
-Die App enthält einen Bookmarklet-Ausleser:
+https://gamingnerdssuedtirol-ctrl.github.io/staemme-coach/
 
-1. `index.html` öffnen.
-2. Unter „Daten übernehmen“ die Anleitung öffnen.
-3. „Auslese-Befehl kopieren“ drücken.
-4. In Firefox ein neues Lesezeichen erstellen.
-5. Als Lesezeichen-Adresse den kopierten JavaScript-Text einsetzen.
-6. Die Stämme im Browser öffnen.
-7. Das Lesezeichen „Stämme auslesen“ ausführen.
-8. Zur Coach-Seite wechseln.
-9. „Aus Zwischenablage importieren“ drücken.
+Wenn noch v0.1 angezeigt wird, den Tab schließen und die Seite neu öffnen.
 
-Der Ausleser versucht Rohstoffe, Bevölkerung, Produktion, Gebäude, Bauschleife, sichtbare Truppen und Effekte zu übernehmen.
+## Neuer Ablauf
 
-## Technische Grenze
+1. Im Coach den neuen Auslese-Befehl kopieren.
+2. Das alte Firefox-Lesezeichen `Stämme auslesen` bearbeiten.
+3. Die alte Adresse vollständig ersetzen.
+4. Die Stämme öffnen und das Lesezeichen ausführen.
+5. Der Coach öffnet sich direkt und importiert die Daten automatisch.
 
-Eine normale PWA darf wegen der Browser-Sicherheitsregeln nicht selbstständig den Inhalt eines anderen Tabs oder einer anderen Domain lesen. Deshalb dient das Lesezeichen als Brücke. Es wird bewusst nur nach einer manuellen Aktion ausgeführt und klickt nichts im Spiel an.
-
-## Dateien
-
-- `index.html` – Oberfläche
-- `app.js` – lokale Datenhaltung und erste Empfehlungen
-- `bookmarklet.txt` – Auslese-Befehl separat
-- `manifest.webmanifest` – PWA-Metadaten
-- `sw.js` – Offline-Cache für eine später gehostete Version
-
-## Nächster Test
-
-Nach dem ersten echten Import bitte den JSON-Inhalt aus „JSON-Test und Fehlerdiagnose“ kopieren und im Chat schicken. Dann können die Selektoren exakt auf die mobile Spielseite angepasst werden.
+Die Daten werden im URL-Fragment übertragen. Dieses Fragment wird nicht an GitHub gesendet und direkt nach dem Import aus der Adresszeile entfernt.

@@ -3,10 +3,10 @@
 
 const $ = (id) => document.getElementById(id);
 const fmt = (v) => Number.isFinite(v) ? v.toLocaleString("de-DE") : "–";
-const storeKey = "staemmeCoachStateV1";
+const storeKey = "staemmeCoachStateV2";
 
 const demo = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   capturedAt: new Date().toISOString(),
   page: { world: "de256", screen: "overview" },
   village: { id: "demo", name: "001", x: 609, y: 435, continent: 46 },
@@ -136,6 +136,22 @@ async function importClipboard() {
     toast("Import fehlgeschlagen. Zuerst den Auslese-Lesezeichenbefehl auf der Spielseite ausführen.");
   }
 }
+
+function importFromHash() {
+  if (!location.hash.startsWith("#import=")) return false;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(location.hash.slice(8)));
+    saveState(parsed);
+    history.replaceState(null, "", location.pathname + location.search);
+    setTimeout(() => toast("Live-Daten erfolgreich übernommen."), 150);
+    return true;
+  } catch (error) {
+    console.error(error);
+    toast("Automatischer Import fehlgeschlagen.");
+    return false;
+  }
+}
+
 function toast(message) {
   const el = $("toast");
   el.textContent = message;
@@ -143,7 +159,6 @@ function toast(message) {
   setTimeout(() => el.classList.remove("show"), 2800);
 }
 
-$("importClipboard").addEventListener("click", importClipboard);
 $("importJson").addEventListener("click", () => {
   try { saveState(JSON.parse($("raw").value)); toast("JSON importiert."); }
   catch { toast("Ungültiges JSON."); }
@@ -163,6 +178,8 @@ $("share").addEventListener("click", async () => {
 });
 
 render();
+importFromHash();
+window.addEventListener("hashchange", importFromHash);
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   navigator.serviceWorker.register("./sw.js").catch(()=>{});
 }
