@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#7b2d0b">
+<title>Stämme Coach</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--brown:#7b2d0b;--brown2:#a84a18;--cream:#f3e5d4;--card:#fffaf2;--line:#c99768;--good:#2e7d32;}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,sans-serif;background:var(--cream);color:#2b160d}
+header{background:linear-gradient(135deg,var(--brown),var(--brown2));color:#fff;padding:18px 16px 22px;position:sticky;top:0;z-index:2}
+h1{margin:0;font-size:24px} .sub{font-size:12px;opacity:.85;margin-top:4px}
+main{padding:12px;max-width:760px;margin:auto} .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 3px 9px #0001}
+.card h2{font-size:16px;margin:0 0 10px} .hero{font-size:24px;font-weight:800} .muted{font-size:12px;opacity:.7}
+.resources{display:grid;grid-template-columns:repeat(3,1fr);gap:7px} .resource{background:#ead0ad;border-radius:10px;padding:10px;text-align:center}
+.resource span{display:block;font-size:11px} .resource strong{font-size:19px}
+.queue{padding:0;margin:0;list-style:none} .queue li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #ead7c1}
+.buildings{display:grid;grid-template-columns:1fr 1fr;gap:7px} .buildings div{display:flex;justify-content:space-between;background:#f2dfca;border-radius:8px;padding:8px}
+button{width:100%;border:0;border-radius:10px;padding:12px;margin:5px 0;background:var(--brown);color:#fff;font-weight:750;font-size:15px}
+button.secondary{background:#dfc2a4;color:#421b0c} textarea{width:100%;min-height:150px;border:1px solid var(--line);border-radius:10px;padding:9px;font-family:monospace;font-size:11px}
+details summary{font-weight:700;cursor:pointer} .steps{line-height:1.5;padding-left:20px} #bookmarklet{height:90px}
+#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,20px);background:#222;color:#fff;padding:11px 16px;border-radius:99px;opacity:0;pointer-events:none;transition:.2s;z-index:5;max-width:90%;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)} @media(min-width:650px){.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Stämme Coach</h1>
+  <div class="sub"><span id="villageTitle">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div>
+</header>
+<main>
+  <section class="card">
+    <div class="resources">
+      <div class="resource"><span>Holz</span><strong id="wood">–</strong></div>
+      <div class="resource"><span>Lehm</span><strong id="clay">–</strong></div>
+      <div class="resource"><span>Eisen</span><strong id="iron">–</strong></div>
+    </div>
+    <p>Bevölkerung: <strong id="pop">–</strong></p>
+  </section>
+
+  <div class="grid">
+    <section class="card"><h2>Nächster Bau</h2><div class="hero" id="nextBuild">–</div><p class="muted" id="nextBuildWhy">–</p></section>
+    <section class="card"><h2>Truppen</h2><div class="hero" id="troop">–</div><p class="muted">Erste einfache Zielregel; wird später mit Rohstoffreserve verknüpft.</p></section>
+  </div>
+
+  <section class="card"><h2>Nachtplanung</h2><div class="hero" id="night">–</div><p>Queue-Gesamtdauer: <strong id="queueEnd">–</strong></p></section>
+
+  <section class="card"><h2>Aktuelle Bauschleife</h2><ol class="queue" id="queue"></ol></section>
+  <section class="card"><h2>Gebäude</h2><div class="buildings" id="buildings"></div></section>
+
+  <section class="card">
+    <h2>Daten übernehmen</h2>
+    <button id="importClipboard">Aus Zwischenablage importieren</button>
+    <button class="secondary" id="share">Aktuelle Daten teilen/kopieren</button>
+    <details>
+      <summary>Android-Ausleser einrichten</summary>
+      <ol class="steps">
+        <li>Den folgenden Auslese-Befehl kopieren.</li>
+        <li>In Firefox ein neues Lesezeichen anlegen.</li>
+        <li>Als Adresse den kopierten Text einsetzen; Name z. B. <b>Stämme auslesen</b>.</li>
+        <li>Die Stämme öffnen und die gewünschte Dorfseite anzeigen.</li>
+        <li>In die Adresszeile den Namen des Lesezeichens tippen und das Lesezeichen auswählen.</li>
+        <li>Danach den Coach öffnen und <b>Aus Zwischenablage importieren</b> drücken.</li>
+      </ol>
+      <textarea id="bookmarklet" readonly>javascript:(()=>{const c=s=>String(s??'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim(),n=s=>{const x=parseInt(c(s).replace(/\./g,'').replace(/[^\d-]/g,''),10);return Number.isFinite(x)?x:null},t=sel=>{for(const s of sel){const e=document.querySelector(s);if(e&&c(e.textContent))return c(e.textContent)}return null},sec=s=>{const m=c(s).match(/(?:(\d+):)?(\d{1,2}):(\d{2})/);return m?(+m[1]||0)*3600+(+m[2]||0)*60+(+m[3]||0):null};const u=new URL(location.href),hm=location.hostname.match(/^([a-z]+\d+)\./i),body=c(document.body.textContent),menu=c(document.querySelector('#menu_row2,#menu_row,.menu-row,body')?.textContent),vm=menu.match(/(?:»\s*)?(\d+)\s*\((\d{3})\|(\d{3})\)\s*K(\d+)/i);let pc=n(t(['#pop_current'])),pm=n(t(['#pop_max']));const pt=t(['#pop_current_label','.population']);if((!pc||!pm)&&pt?.includes('/')){const a=pt.split('/');pc=n(a[0]);pm=n(a[1])}const prod=(re)=>{const m=body.match(re);return m?n(m[1]):null};const names=['Hauptgebäude','Kaserne','Stall','Werkstatt','Schmiede','Versammlungsplatz','Marktplatz','Holzfällerlager','Holzfäller','Lehmgrube','Eisenmine','Bauernhof','Speicher','Versteck','Wall','Adelshof'];const buildings={};for(const name of names){const re=new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*\\((\\d+)\\)','i'),m=body.match(re);if(m)buildings[name==='Holzfällerlager'?'Holzfäller':name]=+m[1]}const queue=[];const qsec=body.match(/Bauschleife\s+(.+?)(?:Einheiten|Aktive Effekte|Gruppenzugehörigkeit|Notizblock|Zusatzkosten)/i)?.[1]||body;const qr=/(Hauptgebäude|Kaserne|Stall|Werkstatt|Schmiede|Marktplatz|Holzfäller(?:lager)?|Lehmgrube|Eisenmine|Bauernhof|Speicher|Versteck|Wall|Adelshof)(?:\s*\(Stufe\s*(\d+)\))?\s+((?:(?:\d+):)?\d{1,2}:\d{2})/gi;let m;while((m=qr.exec(qsec))!==null)queue.push({building:m[1],targetLevel:m[2]?+m[2]:null,remainingText:m[3],remainingSeconds:sec(m[3])});const units={};for(const [k,re] of Object.entries({spear:/(\d+)\s+Speerträger/i,sword:/(\d+)\s+Schwertkämpfer/i,axe:/(\d+)\s+Axtkämpfer/i,spy:/(\d+)\s+Späher/i,light:/(\d+)\s+Leichte Kavallerie/i,heavy:/(\d+)\s+Schwere Kavallerie/i,ram:/(\d+)\s+Rammböcke?/i,catapult:/(\d+)\s+Katapulte?/i})){const x=body.match(re);units[k]=x?n(x[1]):null}const effects=[...new Set([...body.matchAll(/([+-]\d+\s*%\s+(?:Baugeschwindigkeit|Holzproduktion|Lehmproduktion|Eisenproduktion))/gi)].map(x=>x[1]))];const data={schemaVersion:1,capturedAt:new Date().toISOString(),page:{world:hm?.[1]||null,villageId:u.searchParams.get('village'),screen:u.searchParams.get('screen')||'overview',url:location.href},village:{id:u.searchParams.get('village'),name:vm?.[1]||null,x:vm?+vm[2]:null,y:vm?+vm[3]:null,continent:vm?+vm[4]:null},resources:{wood:n(t(['#wood'])),clay:n(t(['#stone'])),iron:n(t(['#iron'])),storage:n(t(['#storage']))},population:{current:pc,max:pm},production:{woodPerHour:prod(/Holz\s+([\d.]+)\s+pro Stunde/i),clayPerHour:prod(/Lehm\s+([\d.]+)\s+pro Stunde/i),ironPerHour:prod(/Eisen\s+([\d.]+)\s+pro Stunde/i)},buildings,buildQueue:queue,units,effects};navigator.clipboard.writeText(JSON.stringify(data)).then(()=>alert('Stämme-Coach-Daten kopiert. Jetzt Coach öffnen und „Aus Zwischenablage importieren“ drücken.')).catch(()=>prompt('Daten kopieren:',JSON.stringify(data)));})();</textarea>
+      <button id="copyBookmarklet">Auslese-Befehl kopieren</button>
+    </details>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>JSON-Test und Fehlerdiagnose</summary>
+      <textarea id="raw"></textarea>
+      <button id="importJson">JSON aus Textfeld importieren</button>
+      <button class="secondary" id="demo">Demodaten laden</button>
+      <button class="secondary" id="clear">Lokale Daten löschen</button>
+    </details>
+  </section>
+
+  <p class="muted">Version 0.1 führt keine Spielaktionen aus. Sie liest nur sichtbare Werte und speichert sie lokal auf deinem Gerät.</p>
+</main>
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
