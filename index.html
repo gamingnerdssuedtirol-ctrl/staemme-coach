@@ -19,6 +19,16 @@ select,input[type=range]{width:100%}.controls{display:grid;grid-template-columns
 .cost{background:#f2dfca;border-radius:9px;padding:9px;margin-top:10px;font-size:13px}.recommendation{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid #ead7c1}
 .recommendation small{display:block;margin-top:3px}.queue{padding:0;margin:0;list-style:none}.queue li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #ead7c1}
 .buildings{display:grid;grid-template-columns:1fr 1fr;gap:7px}.buildings div{display:flex;justify-content:space-between;background:#f2dfca;border-radius:8px;padding:8px}
+.section-title-row,.village-select-row{display:flex;align-items:center;justify-content:space-between;gap:8px}.section-title-row h2{margin-bottom:0}
+.mini-pill{background:#f2dfca;border-radius:99px;padding:5px 9px;font-size:11px;font-weight:800}
+.village-select-row select{flex:1}.small-danger{width:auto;background:#8a2c1f;padding:9px 12px;font-size:12px}
+.village-cards{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}
+.village-card{background:#f2dfca;color:#2b160d;border:1px solid transparent;margin:0;padding:9px;display:flex;justify-content:space-between;align-items:center;text-align:left}
+.village-card.active{border-color:var(--brown);box-shadow:inset 0 0 0 1px var(--brown)}.village-card small{display:block}
+.attention{font-size:10px;font-weight:900;border-radius:99px;padding:4px 7px}.attention.low{background:#dff2e3;color:#276d37}.attention.medium{background:#fff0c8;color:#805c00}.attention.high{background:#f7d6cf;color:#9a2f1d}
+.account-grid,.overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.account-grid div,.overview-grid div{background:#f2dfca;border-radius:9px;padding:9px}.account-grid span,.overview-grid span{display:block;font-size:11px}.account-grid strong,.overview-grid strong{font-size:17px}
+.progress-item{margin:11px 0}.progress-item>div:first-child{display:flex;justify-content:space-between;font-size:13px}.progress-track{height:12px;background:#ead7c1;border-radius:99px;overflow:hidden;margin-top:5px}.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#8f3b15,#d17a31);transition:width .3s}
+.title-with-badge{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.priority-badge{font-size:9px;font-weight:900;border-radius:99px;padding:3px 6px;white-space:nowrap}.priority-badge.now{background:#dff2e3;color:#276d37}.priority-badge.today{background:#fff0c8;color:#805c00}.priority-badge.later{background:#eee;color:#666}
 .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .troop-row{display:grid;grid-template-columns:30px 1fr auto;gap:9px;align-items:start;padding:10px 0;border-bottom:1px solid #ead7c1}
 .troop-rank{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:var(--brown);color:white;font-weight:800;font-size:12px}
@@ -40,7 +50,7 @@ textarea,pre{width:100%;min-height:140px;border:1px solid var(--line);border-rad
 details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,20px);background:#222;color:#fff;padding:11px 16px;border-radius:99px;opacity:0;transition:.2s;z-index:5;max-width:90%;text-align:center}#toast.show{opacity:1;transform:translate(-50%,0)}
 @media(max-width:520px){.resources{grid-template-columns:repeat(2,1fr)}.grid,.controls{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>Stämme Coach <small>v1.0</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
+<header><h1>Stämme Coach <small>v1.1</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
 <main>
 <div id="dataStatus" class="status"></div>
 <section class="card">
@@ -49,6 +59,21 @@ details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bo
 <a id="openGame" class="button" href="https://de256.die-staemme.de/game.php?screen=overview" target="_blank" rel="noopener">🎮 Spiel in neuem Tab öffnen</a>
 <a id="openGameSameTab" class="button secondary" href="https://de256.die-staemme.de/game.php?screen=overview">Spiel im selben Tab öffnen</a>
 <p class="muted">Im Spiel unten rechts auf <b>Coach aktualisieren</b> tippen. Danach öffnet sich der Coach automatisch mit den neuen Daten.</p>
+</section>
+<section class="card">
+<div class="section-title-row"><h2>Mehrdorf-Zentrale</h2><span id="villageCount" class="mini-pill">0 Dörfer</span></div>
+<div class="village-select-row">
+<select id="villageSelect" aria-label="Dorf auswählen"></select>
+<button id="deleteVillage" class="small-danger" type="button">Entfernen</button>
+</div>
+<div id="villageCards" class="village-cards"></div>
+<div class="account-grid">
+<div><span>Holz gesamt</span><strong id="accountWood">–</strong></div>
+<div><span>Lehm gesamt</span><strong id="accountClay">–</strong></div>
+<div><span>Eisen gesamt</span><strong id="accountIron">–</strong></div>
+<div><span>OFF-Stärke</span><strong id="accountOff">–</strong></div>
+</div>
+<p class="muted">Jedes aktualisierte Dorf wird automatisch gespeichert. Öffne ein anderes Dorf im Spiel und tippe dort auf „Coach aktualisieren“.</p>
 </section>
 <section class="card"><h2>Planer-Einstellungen</h2><div class="controls"><label>Dorfziel<select id="mode"><option value="off">OFF-Dorf</option><option value="def">DEF-Dorf</option><option value="balanced">Ausgeglichen</option></select></label><label>Strategie-Zeitraum: <span id="horizonValue">24 Std.</span><input id="horizon" type="range" min="6" max="48" step="6" value="24"></label>
 <label>Planlänge: <span id="strategyDepthValue">8 Schritte</span><input id="strategyDepth" type="range" min="3" max="12" step="1" value="8"></label></div></section>
@@ -80,7 +105,22 @@ details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bo
 <label>Geplante Offline-Zeit: <span id="offlineHoursValue">8 Std.</span><input id="offlineHours" type="range" min="1" max="16" step="1" value="8"></label>
 <label>Reserve: <span id="offlineBufferValue">30 Min.</span><input id="offlineBuffer" type="range" min="0" max="120" step="15" value="30"></label>
 </div>
-<p class="muted">Die Offline-Info ist jetzt direkt ins Dashboard integriert. Die detaillierte Baufolge steht darunter in der Strategie-KI.</p>
+<p class="muted">Die Offline-Info ist direkt ins Dashboard integriert. Die detaillierte Baufolge steht darunter in der Strategie-KI.</p>
+</section>
+<section class="card">
+<h2>Truppenübersicht</h2>
+<div class="overview-grid">
+<div><span>OFF-Stärke</span><strong id="overviewOffStrength">–</strong></div>
+<div><span>Späher</span><strong id="overviewScouts">–</strong></div>
+<div><span>Leichte Kavallerie</span><strong id="overviewLight">–</strong></div>
+<div><span>Freie Bevölkerung</span><strong id="overviewFreePop">–</strong></div>
+</div>
+</section>
+<section class="card">
+<h2>Fortschritt</h2>
+<div class="progress-item"><div><span>Adelshof</span><strong id="progressNobleValue">0%</strong></div><div class="progress-track"><div id="progressNoble" class="progress-fill"></div></div></div>
+<div class="progress-item"><div><span>Armee-Ziel</span><strong id="progressArmyValue">0%</strong></div><div class="progress-track"><div id="progressArmy" class="progress-fill"></div></div></div>
+<div class="progress-item"><div><span>Wirtschaft</span><strong id="progressEconomyValue">0%</strong></div><div class="progress-track"><div id="progressEconomy" class="progress-fill"></div></div></div>
 </section>
 <section class="card"><div class="resources"><div class="resource"><span>Holz</span><strong id="wood">–</strong></div><div class="resource"><span>Lehm</span><strong id="clay">–</strong></div><div class="resource"><span>Eisen</span><strong id="iron">–</strong></div><div class="resource"><span>Speicher</span><strong id="storage">–</strong></div></div><p>Bevölkerung: <strong id="pop">–</strong></p></section>
 <section class="card">

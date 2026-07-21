@@ -2,6 +2,8 @@
 
 const $ = (id) => document.getElementById(id);
 const KEY = "staemmeCoachStateV5";
+const VILLAGES_KEY = "staemmeCoachVillagesV11";
+const ACTIVE_VILLAGE_KEY = "staemmeCoachActiveVillageV11";
 const SETTINGS_KEY = "staemmeCoachPlannerV07";
 
 let state = null;
@@ -78,6 +80,91 @@ function loadState() {
 
   return null;
 }
+
+function villageIdentity(value) {
+  if (!value) return null;
+  return String(
+    value.villageKey ||
+    value.village?.id ||
+    value.page?.villageId ||
+    [
+      value.page?.world,
+      value.village?.x,
+      value.village?.y
+    ].filter(v => v !== null && v !== undefined).join("-")
+  ) || null;
+}
+
+function loadVillageStore() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(VILLAGES_KEY));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveVillageStore(store) {
+  localStorage.setItem(VILLAGES_KEY, JSON.stringify(store));
+}
+
+function migrateSingleVillage() {
+  const store = loadVillageStore();
+  const single = loadState();
+  const key = villageIdentity(single);
+  if (key && looksLikeCoachState(single) && !store[key]) {
+    store[key] = single;
+    saveVillageStore(store);
+  }
+  return store;
+}
+
+function loadActiveVillage() {
+  const store = migrateSingleVillage();
+  const requested = localStorage.getItem(ACTIVE_VILLAGE_KEY);
+  if (requested && store[requested]) return store[requested];
+
+  const entries = Object.entries(store).sort((a, b) =>
+    String(b[1]?.capturedAt || "").localeCompare(String(a[1]?.capturedAt || ""))
+  );
+  if (entries.length) {
+    localStorage.setItem(ACTIVE_VILLAGE_KEY, entries[0][0]);
+    return entries[0][1];
+  }
+  return loadState();
+}
+
+function storeVillage(value, makeActive = true) {
+  const key = villageIdentity(value);
+  if (!key) return false;
+  const store = loadVillageStore();
+  store[key] = value;
+  saveVillageStore(store);
+  localStorage.setItem(KEY, JSON.stringify(value));
+  if (makeActive) localStorage.setItem(ACTIVE_VILLAGE_KEY, key);
+  return true;
+}
+
+function switchVillage(key) {
+  const store = loadVillageStore();
+  if (!store[key]) return;
+  localStorage.setItem(ACTIVE_VILLAGE_KEY, key);
+  state = store[key];
+  localStorage.setItem(KEY, JSON.stringify(state));
+  render();
+}
+
+function deleteCurrentVillage() {
+  const key = villageIdentity(state);
+  if (!key) return;
+  const store = loadVillageStore();
+  delete store[key];
+  saveVillageStore(store);
+  localStorage.removeItem(ACTIVE_VILLAGE_KEY);
+  state = loadActiveVillage() || fallback;
+  render();
+}
+
 function loadSettings() {
   try {
     return {
@@ -119,7 +206,7 @@ function saveSettings() {
 }
 function saveState(v) {
   state = v;
-  localStorage.setItem(KEY, JSON.stringify(v));
+  storeVillage(v, true);
   render();
 }
 function queueSeconds() {
@@ -587,7 +674,7 @@ function renderStrategyPlan() {
     row.innerHTML = `
       <div class="strategy-number">${index + 1}</div>
       <div class="strategy-main">
-        <strong>${step.name} ${step.target}</strong>
+        <div class="title-with-badge"><strong>${step.name} ${step.target}</strong>${priorityBadge(step.score, index)}</div>
         <small>${reasonText(step)}</small>
         <small>${costText(candidateCost(step))}</small>
       </div>
@@ -919,7 +1006,7 @@ function renderTroopCoach() {
     row.innerHTML = `
       <div class="troop-rank">${index + 1}</div>
       <div class="troop-main">
-        <strong>${item.count} × ${item.short}</strong>
+        <div class="title-with-badge"><strong>${item.count} × ${item.short}</strong>${priorityBadge(60 - index * 12, index)}</div>
         <small>${item.reason}</small>
         <small>${item.building} ${item.buildingLevel} · fertig in ca. ${item.finishText}</small>
       </div>
@@ -942,6 +1029,152 @@ function renderTroopCoach() {
   $("dashRecruit").textContent = `${first.count} ${first.short}`;
 
   $("troopDebug").textContent = JSON.stringify(plan, null, 2);
+}
+
+
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function progressMetrics() {
+  const levels = effectiveLevels();
+  const units = state.units || {};
+
+  const nobleParts = [
+    Math.min(1, (levels["Hauptgebäude"] || 0) / 20),
+    Math.min(1, (levels["Schmiede"] || 0) / 20),
+    Math.min(1, (levels["Marktplatz"] || 0) / 10),
+    (levels["Adelshof"] || 0) > 0 ? 1 : 0
+  ];
+  const noble = clampPercent(nobleParts.reduce((a, b) => a + b, 0) / nobleParts.length * 100);
+
+  const targets = troopTargets();
+  const offKeys = settings.mode === "def" ? ["spear", "sword", "spy"] : ["axe", "light", "spy"];
+  const armyRatios = offKeys.map(key => {
+    const target = Math.max(1, targets[key] || 1);
+    return Math.min(1, (Number.isFinite(units[key]) ? units[key] : 0) / target);
+  });
+  const army = clampPercent(armyRatios.reduce((a, b) => a + b, 0) / armyRatios.length * 100);
+
+  const eco = clampPercent(
+    (((levels["Holzfäller"] || 0) + (levels["Lehmgrube"] || 0) + (levels["Eisenmine"] || 0)) / 3) / 30 * 100
+  );
+
+  return {noble, army, eco};
+}
+
+function setProgress(id, value) {
+  const bar = $(id);
+  const label = $(`${id}Value`);
+  if (bar) bar.style.width = `${value}%`;
+  if (label) label.textContent = `${value}%`;
+}
+
+function renderProgress() {
+  const progress = progressMetrics();
+  setProgress("progressNoble", progress.noble);
+  setProgress("progressArmy", progress.army);
+  setProgress("progressEconomy", progress.eco);
+}
+
+function totalOffStrength(units) {
+  return (
+    (units.axe || 0) +
+    (units.light || 0) * 4 +
+    (units.heavy || 0) * 5 +
+    (units.ram || 0) * 2 +
+    (units.catapult || 0) * 2
+  );
+}
+
+function renderTroopOverview() {
+  const units = state.units || {};
+  $("overviewOffStrength").textContent = fmt(totalOffStrength(units));
+  $("overviewScouts").textContent = fmt(units.spy);
+  $("overviewLight").textContent = fmt(units.light);
+  const free = Number.isFinite(state.population?.max) && Number.isFinite(state.population?.current)
+    ? state.population.max - state.population.current
+    : null;
+  $("overviewFreePop").textContent = fmt(free);
+}
+
+function villageAttention(value) {
+  const old = state;
+  state = value;
+  let score = 0;
+  try {
+    const queue = queueSeconds();
+    if (queue <= 0) score += 35;
+    else if (queue < 3600) score += 20;
+    const age = Date.now() - Date.parse(value.capturedAt || "");
+    if (Number.isFinite(age) && age > 30 * 60000) score += 20;
+    const free = Number.isFinite(value.population?.max) && Number.isFinite(value.population?.current)
+      ? value.population.max - value.population.current : 9999;
+    if (free < 150) score += 20;
+    const storage = value.resources?.storage || 1;
+    const maxRes = Math.max(value.resources?.wood || 0, value.resources?.clay || 0, value.resources?.iron || 0);
+    if (maxRes / storage > 0.85) score += 15;
+  } finally {
+    state = old;
+  }
+  return score;
+}
+
+function renderVillageSwitcher() {
+  const store = loadVillageStore();
+  const select = $("villageSelect");
+  const cards = $("villageCards");
+  if (!select || !cards) return;
+
+  const entries = Object.entries(store).sort((a, b) => {
+    const av = a[1]?.village?.name || a[0];
+    const bv = b[1]?.village?.name || b[0];
+    return av.localeCompare(bv, "de");
+  });
+
+  select.innerHTML = "";
+  entries.forEach(([key, value]) => {
+    const option = document.createElement("option");
+    option.value = key;
+    option.textContent = `${value.village?.name || "Dorf"} (${value.village?.x ?? "?"}|${value.village?.y ?? "?"})`;
+    option.selected = key === villageIdentity(state);
+    select.appendChild(option);
+  });
+
+  cards.innerHTML = "";
+  entries.forEach(([key, value]) => {
+    const attention = villageAttention(value);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `village-card ${key === villageIdentity(state) ? "active" : ""}`;
+    card.innerHTML = `
+      <span><strong>${value.village?.name || "Dorf"}</strong><small>${value.village?.x ?? "?"}|${value.village?.y ?? "?"}</small></span>
+      <span class="attention ${attention >= 35 ? "high" : attention >= 15 ? "medium" : "low"}">
+        ${attention >= 35 ? "Handeln" : attention >= 15 ? "Prüfen" : "OK"}
+      </span>`;
+    card.addEventListener("click", () => switchVillage(key));
+    cards.appendChild(card);
+  });
+
+  $("villageCount").textContent = `${entries.length} Dorf${entries.length === 1 ? "" : "dörfer"}`;
+}
+
+function renderAccountOverview() {
+  const store = loadVillageStore();
+  const values = Object.values(store);
+  const totals = values.reduce((acc, village) => {
+    acc.wood += village.resources?.wood || 0;
+    acc.clay += village.resources?.clay || 0;
+    acc.iron += village.resources?.iron || 0;
+    acc.population += village.population?.current || 0;
+    acc.off += totalOffStrength(village.units || {});
+    return acc;
+  }, {wood: 0, clay: 0, iron: 0, population: 0, off: 0});
+
+  $("accountWood").textContent = fmt(totals.wood);
+  $("accountClay").textContent = fmt(totals.clay);
+  $("accountIron").textContent = fmt(totals.iron);
+  $("accountOff").textContent = fmt(totals.off);
 }
 
 function renderLiveDashboard() {
@@ -1084,6 +1317,18 @@ function renderOfflinePlanner() {
   }, null, 2);
 }
 
+
+function priorityMeta(score, index = 0) {
+  if (score >= 55 || index === 0) return {label: "Jetzt erledigen", level: "now"};
+  if (score >= 38 || index <= 2) return {label: "Heute sinnvoll", level: "today"};
+  return {label: "Kann warten", level: "later"};
+}
+
+function priorityBadge(score, index = 0) {
+  const meta = priorityMeta(score, index);
+  return `<span class="priority-badge ${meta.level}">${meta.label}</span>`;
+}
+
 function reasonText(candidate) {
   return candidate.reasons.slice(0, 2).join("; ");
 }
@@ -1115,7 +1360,7 @@ function renderPlanner() {
   const top = ranked[0];
   if (!top) return;
 
-  $("nextBuild").textContent = `${top.name} ${top.target}`;
+  $("nextBuild").innerHTML = `${top.name} ${top.target} ${priorityBadge(top.score, 0)}`;
   $("buildWhy").textContent = reasonText(top);
   $("buildCost").textContent = costText(candidateCost(top));
   $("buildAvailability").textContent = top.pay.affordable
@@ -1130,7 +1375,7 @@ function renderPlanner() {
     const row = document.createElement("div");
     row.className = "recommendation";
     row.innerHTML = `
-      <div><strong>${idx + 2}. ${c.name} ${c.target}</strong><small>${reasonText(c)}</small></div>
+      <div><div class="title-with-badge"><strong>${idx + 2}. ${c.name} ${c.target}</strong>${priorityBadge(c.score, idx + 1)}</div><small>${reasonText(c)}</small></div>
       <span>${Math.round(c.score)} P</span>`;
     list.appendChild(row);
   });
@@ -1260,6 +1505,10 @@ function render() {
   renderStrategyPlan();
   renderLiveDashboard();
   renderTroopCoach();
+  renderProgress();
+  renderTroopOverview();
+  renderVillageSwitcher();
+  renderAccountOverview();
   renderQueue();
   renderBuildings();
   $("raw").value = JSON.stringify(state, null, 2);
@@ -1278,6 +1527,13 @@ function importHash() {
     console.error(e); toast("Import fehlgeschlagen.");
   }
 }
+
+$("villageSelect").onchange = (e) => switchVillage(e.target.value);
+$("deleteVillage").onclick = () => {
+  if (confirm("Dieses Dorf aus dem Coach entfernen? Die Spieldaten im Spiel bleiben unverändert.")) {
+    deleteCurrentVillage();
+  }
+};
 
 $("mode").onchange = (e) => {
   settings.mode = e.target.value; saveSettings(); render();
@@ -1311,7 +1567,7 @@ const fallback = {
   population:null, production:null, buildings:null, buildQueue:[], units:null,
   completeness:{}
 };
-state = loadState() || fallback;
+state = loadActiveVillage() || fallback;
 render();
 importHash();
 addEventListener("hashchange", importHash);
