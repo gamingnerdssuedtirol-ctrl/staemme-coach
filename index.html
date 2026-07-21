@@ -28,6 +28,16 @@ select,input[type=range]{width:100%}.controls{display:grid;grid-template-columns
 .attention{font-size:10px;font-weight:900;border-radius:99px;padding:4px 7px}.attention.low{background:#dff2e3;color:#276d37}.attention.medium{background:#fff0c8;color:#805c00}.attention.high{background:#f7d6cf;color:#9a2f1d}
 .account-grid,.overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.account-grid div,.overview-grid div{background:#f2dfca;border-radius:9px;padding:9px}.account-grid span,.overview-grid span{display:block;font-size:11px}.account-grid strong,.overview-grid strong{font-size:17px}
 .progress-item{margin:11px 0}.progress-item>div:first-child{display:flex;justify-content:space-between;font-size:13px}.progress-track{height:12px;background:#ead7c1;border-radius:99px;overflow:hidden;margin-top:5px}.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#8f3b15,#d17a31);transition:width .3s}
+.hidden{display:none!important}
+.recommendation-actions{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+.action-button{width:auto;margin:0;padding:6px 9px;border-radius:8px;font-size:10px;background:#f2dfca;color:#5b260d;border:1px solid var(--line)}
+.action-button.pin-button.active{background:#fff0c8;color:#805c00}
+.compact-button{padding:9px;font-size:12px}
+.troop-row{display:block;padding:8px 0}
+.troop-summary{width:100%;display:grid;grid-template-columns:30px 1fr auto;gap:9px;align-items:center;background:transparent;color:#2b160d;padding:5px 0;margin:0;text-align:left}
+.troop-details{margin:5px 0 0 39px;padding:8px;background:#f2dfca;border-radius:8px;font-size:11px}.troop-details span{display:block;margin:3px 0}
+.expand-arrow{font-size:18px}
+.history-row{padding:9px 0;border-bottom:1px solid #ead7c1}.history-row small{display:block;margin-top:3px}.history-empty{background:#f2dfca;border-radius:10px;padding:10px}.history-empty small{display:block;margin-top:4px}
 .title-with-badge{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.priority-badge{font-size:9px;font-weight:900;border-radius:99px;padding:3px 6px;white-space:nowrap}.priority-badge.now{background:#dff2e3;color:#276d37}.priority-badge.today{background:#fff0c8;color:#805c00}.priority-badge.later{background:#eee;color:#666}
 .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .troop-row{display:grid;grid-template-columns:30px 1fr auto;gap:9px;align-items:start;padding:10px 0;border-bottom:1px solid #ead7c1}
@@ -50,7 +60,7 @@ textarea,pre{width:100%;min-height:140px;border:1px solid var(--line);border-rad
 details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,20px);background:#222;color:#fff;padding:11px 16px;border-radius:99px;opacity:0;transition:.2s;z-index:5;max-width:90%;text-align:center}#toast.show{opacity:1;transform:translate(-50%,0)}
 @media(max-width:520px){.resources{grid-template-columns:repeat(2,1fr)}.grid,.controls{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>Stämme Coach <small>v1.1</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
+<header><h1>Stämme Coach <small>v1.2</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
 <main>
 <div id="dataStatus" class="status"></div>
 <section class="card">
@@ -107,6 +117,8 @@ details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bo
 </div>
 <p class="muted">Die Offline-Info ist direkt ins Dashboard integriert. Die detaillierte Baufolge steht darunter in der Strategie-KI.</p>
 </section>
+<section class="card"><h2>Beste Bauempfehlung</h2><div class="hero" id="nextBuild">–</div><p id="buildWhy">–</p><div class="cost"><strong>Kosten:</strong> <span id="buildCost">–</span><br><span id="buildAvailability">–</span></div>
+<div id="buildActions"></div></section>
 <section class="card">
 <h2>Truppenübersicht</h2>
 <div class="overview-grid">
@@ -139,14 +151,20 @@ details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bo
 <p id="phaseNote" class="muted">–</p>
 <div class="strategy-target"><span>Nächstes strategisches Ziel</span><strong id="strategyTarget">–</strong></div>
 <div id="strategyTimeline"></div>
+<button id="toggleStrategySteps" class="button secondary compact-button" type="button" hidden>Weitere Schritte anzeigen</button>
 <p id="strategyCoverage" class="muted">–</p>
 <p id="exactTimeStatus" class="estimate-note">⏱ Exakte Bauzeiten werden beim nächsten Spiel-Update eingelesen.</p>
 <p class="muted">Die jeweils aktuell auswählbare nächste Stufe wird exakt aus dem Spiel übernommen. Spätere, noch nicht auswählbare Folgestufen bleiben sichtbar als „geschätzt“ markiert.</p>
 <details><summary>Strategie-Diagnose</summary><pre id="strategyDebug"></pre></details>
 </section>
-<section class="card"><h2>Beste Bauempfehlung</h2><div class="hero" id="nextBuild">–</div><p id="buildWhy">–</p><div class="cost"><strong>Kosten:</strong> <span id="buildCost">–</span><br><span id="buildAvailability">–</span></div></section>
+
 <section class="card"><h2>Alternativen</h2><div id="alternatives"></div></section>
 <section class="card"><h2>Aktuelle Bauschleife</h2><p>Gesamtdauer: <strong id="queueDuration">–</strong></p><ol class="queue" id="queue"></ol></section>
+<section class="card">
+<h2>Verlauf</h2>
+<div id="historyList"></div>
+<p class="muted">Gespeichert werden höchstens die letzten 30 Synchronisierungen pro Dorf.</p>
+</section>
 <section class="card"><h2>Gebäude</h2><div class="buildings" id="buildings"></div></section>
 <section class="card"><details><summary>Planer-Diagnose</summary><pre id="plannerDebug"></pre></details></section>
 <section class="card"><details><summary>JSON / Fehlerdiagnose</summary><textarea id="raw"></textarea><button id="importJson">JSON importieren</button></details></section>

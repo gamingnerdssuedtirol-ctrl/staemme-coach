@@ -1,53 +1,44 @@
-# Stämme Coach v1.1 – Mehrdorf-Zentrale
+# Stämme Coach v1.2 – Interaktive Strategie
 
 ## Neu
 
-### Prioritäten
+### Empfehlungen erledigen
 
-Jede Bau- und Truppenempfehlung erhält einen klaren Status:
+Bauempfehlungen können als `Erledigt` markiert werden. Der Coach nimmt sie aus der aktuellen Priorität und berechnet die Strategie neu.
 
-- Jetzt erledigen
-- Heute sinnvoll
-- Kann warten
+Mit `Rückgängig` kann die Markierung entfernt werden.
 
-### Fortschrittsbalken
+### Empfehlungen anpinnen
 
-Der Coach zeigt den Fortschritt für:
+Ein gewünschter Ausbau kann angepinnt werden, zum Beispiel:
 
-- Adelshof
-- Armee-Ziel
-- Wirtschaft
+`Stall 5`
 
-### Truppenübersicht
+Der angepinnte Ausbau erhält in der Strategie eine sehr hohe Priorität. Mit `Angepinnt` kann die Vorgabe wieder aufgehoben werden.
 
-Direkt auf der Startseite stehen:
+Die Einstellungen werden getrennt für jedes Dorf gespeichert.
 
-- berechnete OFF-Stärke
-- Späher
-- Leichte Kavallerie
-- freie Bevölkerung
+### Kompaktere Oberfläche
 
-### Mehrdorf-Unterstützung
+- Beste Bauempfehlung direkt unter dem Live-Dashboard
+- Strategie zeigt standardmäßig nur die ersten fünf Schritte
+- weitere Schritte über einen Button einblendbar
+- Truppenempfehlungen zeigen zunächst nur die Kurzfassung
+- Kosten und Zeit werden per Antippen aufgeklappt
 
-Jedes Dorf, das über das Tampermonkey-Script aktualisiert wird, wird automatisch separat gespeichert.
+### Verlauf
 
-Die Mehrdorf-Zentrale bietet:
+Pro Dorf werden die letzten 30 Synchronisierungen gespeichert.
 
-- Dorfauswahl
-- kompakte Karten für alle gespeicherten Dörfer
-- Hinweis, welches Dorf Aufmerksamkeit benötigt
-- Gesamtbestände für Holz, Lehm und Eisen
-- berechnete OFF-Stärke des gesamten Kontos
-- Entfernen alter Dorfdatensätze aus dem Coach
+Der Verlauf zeigt unter anderem Veränderungen bei:
 
-## So fügst du ein weiteres Dorf hinzu
+- Holz
+- Lehm
+- Eisen
+- Leichter Kavallerie
+- Axtkämpfern
 
-1. Im Spiel in das gewünschte Dorf wechseln.
-2. Unten rechts auf „Coach aktualisieren“ tippen.
-3. Das Dorf erscheint automatisch in der Mehrdorf-Zentrale.
-4. Diesen Vorgang für jedes weitere Dorf wiederholen.
-
-Der Coach führt weiterhin keine Spielaktionen aus.
+Für einen Vergleich sind mindestens zwei Synchronisierungen desselben Dorfes erforderlich.
 
 ## Installation
 
@@ -59,6 +50,6 @@ Das Tampermonkey-Script v0.5.3 bleibt unverändert.
 4. Commit bestätigen.
 5. Coach neu laden.
 
-Oben muss `v1.1` stehen.
+Oben muss `v1.2` stehen.
 
-Falls eine ältere Version angezeigt wird, Website-Cache der Coach-Seite löschen und erneut öffnen.
+Falls weiterhin eine ältere Version erscheint, den Website-Cache der Coach-Seite löschen und erneut öffnen.

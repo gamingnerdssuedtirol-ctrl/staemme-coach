@@ -5,7 +5,7 @@
   "display": "standalone",
   "background_color": "#f3e5d4",
   "theme_color": "#7b2d0b",
-  "description": "Mehrdorf-Zentrale mit Live-Dashboard, Fortschritt, Strategie- und Truppen-Coach.",
+  "description": "Interaktiver Mehrdorf-Coach mit anpassbarer Strategie und Verlauf.",
   "icons": [
     {
       "src": "icon-192.svg",

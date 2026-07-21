@@ -4,6 +4,8 @@ const $ = (id) => document.getElementById(id);
 const KEY = "staemmeCoachStateV5";
 const VILLAGES_KEY = "staemmeCoachVillagesV11";
 const ACTIVE_VILLAGE_KEY = "staemmeCoachActiveVillageV11";
+const INTERACTIONS_KEY = "staemmeCoachInteractionsV12";
+const HISTORY_KEY = "staemmeCoachHistoryV12";
 const SETTINGS_KEY = "staemmeCoachPlannerV07";
 
 let state = null;
@@ -165,6 +167,120 @@ function deleteCurrentVillage() {
   render();
 }
 
+
+function loadInteractions() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(INTERACTIONS_KEY));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveInteractions(value) {
+  localStorage.setItem(INTERACTIONS_KEY, JSON.stringify(value));
+}
+
+function currentInteractionKey() {
+  return villageIdentity(state) || "default";
+}
+
+function getVillageInteraction() {
+  const all = loadInteractions();
+  const key = currentInteractionKey();
+  return {
+    completed: [],
+    pinned: null,
+    ...(all[key] || {})
+  };
+}
+
+function updateVillageInteraction(patch) {
+  const all = loadInteractions();
+  const key = currentInteractionKey();
+  all[key] = {
+    ...getVillageInteraction(),
+    ...patch
+  };
+  saveInteractions(all);
+}
+
+function recommendationId(name, target) {
+  return `${name}:${target}`;
+}
+
+function markRecommendationDone(name, target) {
+  const interaction = getVillageInteraction();
+  const id = recommendationId(name, target);
+  const completed = [...new Set([...(interaction.completed || []), id])];
+  updateVillageInteraction({ completed });
+  render();
+}
+
+function unmarkRecommendationDone(name, target) {
+  const interaction = getVillageInteraction();
+  const id = recommendationId(name, target);
+  updateVillageInteraction({
+    completed: (interaction.completed || []).filter(value => value !== id)
+  });
+  render();
+}
+
+function pinRecommendation(name, target) {
+  updateVillageInteraction({ pinned: { name, target } });
+  render();
+}
+
+function clearPinnedRecommendation() {
+  updateVillageInteraction({ pinned: null });
+  render();
+}
+
+function loadHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveHistory(value) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(value));
+}
+
+function recordHistory(value) {
+  const key = villageIdentity(value);
+  if (!key || !looksLikeCoachState(value)) return;
+
+  const history = loadHistory();
+  const entries = Array.isArray(history[key]) ? history[key] : [];
+
+  const snapshot = {
+    capturedAt: value.capturedAt || new Date().toISOString(),
+    resources: {
+      wood: value.resources?.wood ?? null,
+      clay: value.resources?.clay ?? null,
+      iron: value.resources?.iron ?? null
+    },
+    population: {
+      current: value.population?.current ?? null,
+      max: value.population?.max ?? null
+    },
+    buildings: value.buildings || {},
+    units: value.units || {}
+  };
+
+  const duplicate = entries.some(entry => entry.capturedAt === snapshot.capturedAt);
+  if (!duplicate) entries.push(snapshot);
+
+  history[key] = entries
+    .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))
+    .slice(-30);
+
+  saveHistory(history);
+}
+
 function loadSettings() {
   try {
     return {
@@ -207,6 +323,7 @@ function saveSettings() {
 function saveState(v) {
   state = v;
   storeVillage(v, true);
+  recordHistory(v);
   render();
 }
 function queueSeconds() {
@@ -385,12 +502,31 @@ function scoreCandidate(name, level, levels) {
 }
 function rankBuildings() {
   const levels = effectiveLevels();
+  const interaction = getVillageInteraction();
+  const completed = new Set(interaction.completed || []);
+  const pinned = interaction.pinned;
   const candidates = [];
+
   for (const name of Object.keys(BUILDING_DATA)) {
     const level = levels[name] || 0;
     const c = scoreCandidate(name, level, levels);
-    if (c) candidates.push(c);
+    if (!c) continue;
+
+    const id = recommendationId(c.name, c.target);
+    if (completed.has(id)) {
+      c.score -= 1000;
+      c.completed = true;
+    }
+
+    if (pinned && pinned.name === c.name && pinned.target === c.target) {
+      c.score += 500;
+      c.pinned = true;
+      c.reasons = ["von dir angepinnt", ...c.reasons];
+    }
+
+    candidates.push(c);
   }
+
   return candidates.sort((a,b) => b.score-a.score);
 }
 
@@ -586,9 +722,23 @@ function buildStrategyPlan() {
   advanceSimulation(sim, sim.queueHours);
 
   for (let i = 0; i < maxSteps; i++) {
+    const interaction = getVillageInteraction();
+    const completed = new Set(interaction.completed || []);
+    const pinned = interaction.pinned;
+
     const candidates = Object.keys(BUILDING_DATA)
       .map(name => candidateForSimulation(name, sim, i))
       .filter(Boolean)
+      .map(candidate => {
+        const id = recommendationId(candidate.name, candidate.target);
+        if (completed.has(id)) candidate.score -= 1000;
+        if (pinned && pinned.name === candidate.name && pinned.target === candidate.target) {
+          candidate.score += 500;
+          candidate.pinned = true;
+          candidate.reasons = ["von dir angepinnt", ...candidate.reasons];
+        }
+        return candidate;
+      })
       .sort((a, b) => b.score - a.score);
 
     const choice = candidates[0];
@@ -670,7 +820,7 @@ function renderStrategyPlan() {
   timeline.innerHTML = "";
   plan.steps.forEach((step, index) => {
     const row = document.createElement("div");
-    row.className = "strategy-step";
+    row.className = `strategy-step ${index >= 5 ? "strategy-extra hidden" : ""}`;
     row.innerHTML = `
       <div class="strategy-number">${index + 1}</div>
       <div class="strategy-main">
@@ -681,9 +831,16 @@ function renderStrategyPlan() {
       <div class="strategy-time">
         <strong>${clockText(step.startHour)}</strong>
         <small>${step.durationExact ? "exakt bis" : "geschätzt bis"} ${clockText(step.finishHour)}</small>
-      </div>`;
+      </div>
+      ${recommendationActions(step.name, step.target)}`;
     timeline.appendChild(row);
   });
+
+  const extraCount = Math.max(0, plan.steps.length - 5);
+  $("toggleStrategySteps").hidden = extraCount === 0;
+  $("toggleStrategySteps").textContent = `Weitere ${extraCount} Schritte anzeigen`;
+  $("toggleStrategySteps").dataset.expanded = "false";
+  bindRecommendationActions(timeline);
 
   const exactCount = plan.steps.filter(step => step.durationExact).length;
   $("exactTimeStatus").textContent = exactCount
@@ -728,9 +885,23 @@ function buildOfflinePlan() {
   advanceSimulation(sim, queueHours);
 
   for (let i = 0; i < maxSteps && sim.elapsedHours < targetHours; i++) {
+    const interaction = getVillageInteraction();
+    const completed = new Set(interaction.completed || []);
+    const pinned = interaction.pinned;
+
     const candidates = Object.keys(BUILDING_DATA)
       .map(name => candidateForSimulation(name, sim, i))
       .filter(Boolean)
+      .map(candidate => {
+        const id = recommendationId(candidate.name, candidate.target);
+        if (completed.has(id)) candidate.score -= 1000;
+        if (pinned && pinned.name === candidate.name && pinned.target === candidate.target) {
+          candidate.score += 500;
+          candidate.pinned = true;
+          candidate.reasons = ["von dir angepinnt", ...candidate.reasons];
+        }
+        return candidate;
+      })
       .sort((a, b) => b.score - a.score);
 
     const choice = candidates[0];
@@ -1004,17 +1175,25 @@ function renderTroopCoach() {
     const row = document.createElement("div");
     row.className = "troop-row";
     row.innerHTML = `
-      <div class="troop-rank">${index + 1}</div>
-      <div class="troop-main">
-        <div class="title-with-badge"><strong>${item.count} × ${item.short}</strong>${priorityBadge(60 - index * 12, index)}</div>
-        <small>${item.reason}</small>
-        <small>${item.building} ${item.buildingLevel} · fertig in ca. ${item.finishText}</small>
-      </div>
-      <div class="troop-cost">
-        <span>${fmt(item.cost.wood)} H</span>
-        <span>${fmt(item.cost.clay)} L</span>
-        <span>${fmt(item.cost.iron)} E</span>
+      <button type="button" class="troop-summary" aria-expanded="false">
+        <div class="troop-rank">${index + 1}</div>
+        <div class="troop-main">
+          <div class="title-with-badge"><strong>${item.count} × ${item.short}</strong>${priorityBadge(60 - index * 12, index)}</div>
+          <small>${item.reason}</small>
+        </div>
+        <span class="expand-arrow">⌄</span>
+      </button>
+      <div class="troop-details hidden">
+        <span>${item.building} ${item.buildingLevel}</span>
+        <span>Fertig in ca. ${item.finishText}</span>
+        <span>${fmt(item.cost.wood)} Holz · ${fmt(item.cost.clay)} Lehm · ${fmt(item.cost.iron)} Eisen</span>
       </div>`;
+    row.querySelector(".troop-summary").onclick = () => {
+      const details = row.querySelector(".troop-details");
+      const expanded = !details.classList.contains("hidden");
+      details.classList.toggle("hidden", expanded);
+      row.querySelector(".troop-summary").setAttribute("aria-expanded", String(!expanded));
+    };
     list.appendChild(row);
   });
 
@@ -1157,6 +1336,58 @@ function renderVillageSwitcher() {
   });
 
   $("villageCount").textContent = `${entries.length} Dorf${entries.length === 1 ? "" : "dörfer"}`;
+}
+
+
+function historyDelta(current, previous) {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return null;
+  return current - previous;
+}
+
+function deltaText(value) {
+  if (!Number.isFinite(value)) return "–";
+  if (value === 0) return "±0";
+  return value > 0 ? `+${fmt(value)}` : fmt(value);
+}
+
+function renderHistory() {
+  const key = villageIdentity(state);
+  const entries = key ? (loadHistory()[key] || []) : [];
+  const container = $("historyList");
+  if (!container) return;
+
+  if (entries.length < 2) {
+    container.innerHTML = `
+      <div class="history-empty">
+        <strong>Noch kein Verlauf verfügbar.</strong>
+        <small>Nach mindestens zwei Synchronisierungen werden Veränderungen angezeigt.</small>
+      </div>`;
+    return;
+  }
+
+  const recent = entries.slice(-7).reverse();
+  container.innerHTML = "";
+
+  recent.forEach((entry, index) => {
+    const chronologicalIndex = entries.length - 1 - index;
+    const previous = entries[chronologicalIndex - 1];
+    const row = document.createElement("div");
+    row.className = "history-row";
+
+    const woodDelta = historyDelta(entry.resources?.wood, previous?.resources?.wood);
+    const clayDelta = historyDelta(entry.resources?.clay, previous?.resources?.clay);
+    const ironDelta = historyDelta(entry.resources?.iron, previous?.resources?.iron);
+    const lightDelta = historyDelta(entry.units?.light, previous?.units?.light);
+    const axeDelta = historyDelta(entry.units?.axe, previous?.units?.axe);
+
+    row.innerHTML = `
+      <div>
+        <strong>${new Date(entry.capturedAt).toLocaleString("de-DE")}</strong>
+        <small>Holz ${deltaText(woodDelta)} · Lehm ${deltaText(clayDelta)} · Eisen ${deltaText(ironDelta)}</small>
+        <small>LK ${deltaText(lightDelta)} · Axt ${deltaText(axeDelta)}</small>
+      </div>`;
+    container.appendChild(row);
+  });
 }
 
 function renderAccountOverview() {
@@ -1318,6 +1549,39 @@ function renderOfflinePlanner() {
 }
 
 
+
+function recommendationActions(name, target) {
+  const interaction = getVillageInteraction();
+  const id = recommendationId(name, target);
+  const done = (interaction.completed || []).includes(id);
+  const pinned = interaction.pinned?.name === name && interaction.pinned?.target === target;
+
+  return `
+    <div class="recommendation-actions">
+      <button type="button" class="action-button done-button" data-action="${done ? "undo" : "done"}" data-name="${name}" data-target="${target}">
+        ${done ? "↩ Rückgängig" : "✓ Erledigt"}
+      </button>
+      <button type="button" class="action-button pin-button ${pinned ? "active" : ""}" data-action="${pinned ? "unpin" : "pin"}" data-name="${name}" data-target="${target}">
+        ${pinned ? "📌 Angepinnt" : "📌 Anpinnen"}
+      </button>
+    </div>`;
+}
+
+function bindRecommendationActions(root = document) {
+  root.querySelectorAll("[data-action][data-name][data-target]").forEach(button => {
+    button.onclick = () => {
+      const name = button.dataset.name;
+      const target = +button.dataset.target;
+      switch (button.dataset.action) {
+        case "done": markRecommendationDone(name, target); break;
+        case "undo": unmarkRecommendationDone(name, target); break;
+        case "pin": pinRecommendation(name, target); break;
+        case "unpin": clearPinnedRecommendation(); break;
+      }
+    };
+  });
+}
+
 function priorityMeta(score, index = 0) {
   if (score >= 55 || index === 0) return {label: "Jetzt erledigen", level: "now"};
   if (score >= 38 || index <= 2) return {label: "Heute sinnvoll", level: "today"};
@@ -1362,6 +1626,7 @@ function renderPlanner() {
 
   $("nextBuild").innerHTML = `${top.name} ${top.target} ${priorityBadge(top.score, 0)}`;
   $("buildWhy").textContent = reasonText(top);
+  $("buildActions").innerHTML = recommendationActions(top.name, top.target);
   $("buildCost").textContent = costText(candidateCost(top));
   $("buildAvailability").textContent = top.pay.affordable
     ? `innerhalb des Planungsfensters bezahlbar`
@@ -1375,10 +1640,17 @@ function renderPlanner() {
     const row = document.createElement("div");
     row.className = "recommendation";
     row.innerHTML = `
-      <div><div class="title-with-badge"><strong>${idx + 2}. ${c.name} ${c.target}</strong>${priorityBadge(c.score, idx + 1)}</div><small>${reasonText(c)}</small></div>
+      <div>
+        <div class="title-with-badge"><strong>${idx + 2}. ${c.name} ${c.target}</strong>${priorityBadge(c.score, idx + 1)}</div>
+        <small>${reasonText(c)}</small>
+        ${recommendationActions(c.name, c.target)}
+      </div>
       <span>${Math.round(c.score)} P</span>`;
     list.appendChild(row);
   });
+
+  bindRecommendationActions($("buildActions"));
+  bindRecommendationActions(list);
 
   $("plannerDebug").textContent = JSON.stringify(
     ranked.slice(0,8).map(c => ({
@@ -1509,6 +1781,7 @@ function render() {
   renderTroopOverview();
   renderVillageSwitcher();
   renderAccountOverview();
+  renderHistory();
   renderQueue();
   renderBuildings();
   $("raw").value = JSON.stringify(state, null, 2);
@@ -1527,6 +1800,16 @@ function importHash() {
     console.error(e); toast("Import fehlgeschlagen.");
   }
 }
+
+$("toggleStrategySteps").onclick = () => {
+  const expanded = $("toggleStrategySteps").dataset.expanded === "true";
+  document.querySelectorAll(".strategy-extra").forEach(row => row.classList.toggle("hidden", expanded));
+  $("toggleStrategySteps").dataset.expanded = String(!expanded);
+  const count = document.querySelectorAll(".strategy-extra").length;
+  $("toggleStrategySteps").textContent = expanded
+    ? `Weitere ${count} Schritte anzeigen`
+    : "Weniger Schritte anzeigen";
+};
 
 $("villageSelect").onchange = (e) => switchVillage(e.target.value);
 $("deleteVillage").onclick = () => {
@@ -1568,6 +1851,7 @@ const fallback = {
   completeness:{}
 };
 state = loadActiveVillage() || fallback;
+if (looksLikeCoachState(state)) recordHistory(state);
 render();
 importHash();
 addEventListener("hashchange", importHash);
