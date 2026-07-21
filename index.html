@@ -12,7 +12,8 @@ h1{margin:0;font-size:25px}.sub{font-size:12px;opacity:.86;margin-top:4px}main{p
 .card h2{font-size:16px;margin:0 0 10px}.hero{font-size:23px;font-weight:850}.muted,small{font-size:12px;opacity:.72}
 .resources{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.resource{background:#ead0ad;border-radius:10px;padding:10px 4px;text-align:center}
 .resource span{display:block;font-size:10px}.resource strong{font-size:17px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-button{width:100%;border:0;border-radius:11px;padding:13px;margin:5px 0;background:var(--brown);color:#fff;font-weight:800;font-size:15px}
+button,.button{display:block;width:100%;border:0;border-radius:11px;padding:13px;margin:5px 0;background:var(--brown);color:#fff;font-weight:800;font-size:15px;text-align:center;text-decoration:none}
+.button.secondary{background:#efe0ce;color:#5b260d;border:1px solid var(--line)}
 select,input[type=range]{width:100%}.controls{display:grid;grid-template-columns:1fr 1fr;gap:12px}.controls label{font-size:12px;font-weight:700}
 .status{border-radius:10px;padding:10px;margin-bottom:10px;font-size:13px}.good{background:var(--good);border:1px solid #70a978}.bad{background:var(--bad);border:1px solid #d29a45}
 .cost{background:#f2dfca;border-radius:9px;padding:9px;margin-top:10px;font-size:13px}.recommendation{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid #ead7c1}
@@ -22,10 +23,16 @@ textarea,pre{width:100%;min-height:140px;border:1px solid var(--line);border-rad
 details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,20px);background:#222;color:#fff;padding:11px 16px;border-radius:99px;opacity:0;transition:.2s;z-index:5;max-width:90%;text-align:center}#toast.show{opacity:1;transform:translate(-50%,0)}
 @media(max-width:520px){.resources{grid-template-columns:repeat(2,1fr)}.grid,.controls{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>Stämme Coach <small>v0.6</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
+<header><h1>Stämme Coach <small>v0.6.1</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
 <main>
 <div id="dataStatus" class="status"></div>
-<section class="card"><button id="openGame">Spiel öffnen und aktualisieren</button><p class="muted">Im Spiel unten rechts auf <b>Coach aktualisieren</b> tippen.</p></section>
+<section class="card">
+<div id="emptyState" class="status bad" hidden><strong>Noch keine Spieldaten vorhanden.</strong><br>Öffne das Spiel und tippe dort unten rechts auf <b>Coach aktualisieren</b>.</div>
+<div id="syncStatus" class="status good" hidden></div>
+<a id="openGame" class="button" href="https://de256.die-staemme.de/game.php?screen=overview" target="_blank" rel="noopener">🎮 Spiel in neuem Tab öffnen</a>
+<a id="openGameSameTab" class="button secondary" href="https://de256.die-staemme.de/game.php?screen=overview">Spiel im selben Tab öffnen</a>
+<p class="muted">Im Spiel unten rechts auf <b>Coach aktualisieren</b> tippen. Danach öffnet sich der Coach automatisch mit den neuen Daten.</p>
+</section>
 <section class="card"><h2>Planer-Einstellungen</h2><div class="controls"><label>Dorfziel<select id="mode"><option value="off">OFF-Dorf</option><option value="def">DEF-Dorf</option><option value="balanced">Ausgeglichen</option></select></label><label>Planungsfenster: <span id="horizonValue">8 Std.</span><input id="horizon" type="range" min="1" max="24" step="1" value="8"></label></div></section>
 <section class="card"><div class="resources"><div class="resource"><span>Holz</span><strong id="wood">–</strong></div><div class="resource"><span>Lehm</span><strong id="clay">–</strong></div><div class="resource"><span>Eisen</span><strong id="iron">–</strong></div><div class="resource"><span>Speicher</span><strong id="storage">–</strong></div></div><p>Bevölkerung: <strong id="pop">–</strong></p></section>
 <section class="card"><h2>Beste Bauempfehlung</h2><div class="hero" id="nextBuild">–</div><p id="buildWhy">–</p><div class="cost"><strong>Kosten:</strong> <span id="buildCost">–</span><br><span id="buildAvailability">–</span></div></section>

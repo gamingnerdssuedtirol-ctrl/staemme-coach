@@ -1,35 +1,40 @@
-# Stämme Coach v0.6 – intelligenter Bauplaner
+# Stämme Coach v0.6.1
 
-## Neu
+Diese Version behebt den leeren Coach und verbessert die Funktion „Spiel öffnen“.
 
-- Dorfziel auswählbar: OFF, DEF oder ausgeglichen
-- Planungsfenster von 1 bis 24 Stunden
-- Queue wird bei der Bewertung berücksichtigt
-- Rohstoffbestand und Produktion werden hochgerechnet
-- Speicher- und Bauernhofengpässe werden priorisiert
-- Produktionsungleichgewichte werden bewertet
-- Voraussetzungen für Stall, Werkstatt und Adelshof werden geprüft
-- Hauptempfehlung plus drei Alternativen
-- Kosten und geschätzte Wartezeit
-- transparente Planer-Diagnose mit Punktwerten und Gründen
+## Änderungen
 
-## Installation
+- „Spiel in neuem Tab öffnen“ ist jetzt ein normaler Link und funktioniert auf Android zuverlässiger.
+- Zusätzlich gibt es „Spiel im selben Tab öffnen“ als Ausweichmöglichkeit.
+- Der Link öffnet direkt Welt `de256` und – sobald Daten vorhanden sind – das zuletzt synchronisierte Dorf.
+- Ältere gespeicherte Coach-Daten werden automatisch aus früheren LocalStorage-Schlüsseln übernommen.
+- Ohne Spieldaten erscheint eine klare Anleitung statt einer scheinbar kaputten Oberfläche.
+- Synchronisationsstatus:
+  - gerade eben / vor X Minuten
+  - Warnung ab 30 Minuten
+- Neuer Service-Worker-Cache, damit das Handy nicht bei v0.6 hängen bleibt.
 
-Nur die GitHub-PWA wird aktualisiert. Das funktionierende Tampermonkey-Script v0.5.2 bleibt unverändert.
+## Installation auf GitHub
 
 1. ZIP entpacken.
-2. Diese Dateien in das Repository `staemme-coach` hochladen:
-   - index.html
-   - app.js
-   - sw.js
-   - manifest.webmanifest
-   - icon-192.svg
-   - icon-512.svg
-3. Vorhandene Dateien ersetzen und Commit bestätigen.
-4. Coach neu öffnen.
-5. Oben muss `v0.6` stehen.
-6. Im Spiel wie gewohnt `Coach aktualisieren` drücken.
+2. Alle enthaltenen Dateien in das Repository `staemme-coach` hochladen.
+3. Vorhandene Dateien ersetzen.
+4. Commit bestätigen.
+5. GitHub Pages neu öffnen.
 
-## Hinweis
+Oben muss `v0.6.1` stehen.
 
-Dies ist die erste Version des intelligenten Bauplaners. Die Planer-Diagnose zeigt, weshalb ein Gebäude bevorzugt wurde. Dadurch können wir die Gewichtung anhand deiner echten Spielsituation gezielt weiter verbessern.
+## Wichtig bei altem Cache
+
+Falls weiterhin v0.6 angezeigt wird:
+
+1. Seite einmal neu laden.
+2. Browser-Menü öffnen.
+3. „Website-Daten löschen“ oder „Cache leeren“ für die Coach-Seite.
+4. Coach erneut öffnen.
+
+Danach:
+
+1. „Spiel in neuem Tab öffnen“ drücken.
+2. Im Spiel unten rechts „Coach aktualisieren“ drücken.
+3. Der Coach öffnet sich mit den aktuellen Daten.

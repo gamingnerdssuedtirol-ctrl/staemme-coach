@@ -28,8 +28,55 @@ const BUILDING_DATA = {
 const fmt = (v) => Number.isFinite(v) ? v.toLocaleString("de-DE") : "–";
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
+function looksLikeCoachState(value) {
+  return value &&
+    typeof value === "object" &&
+    value.buildings &&
+    value.resources &&
+    (value.village || value.page);
+}
+
 function loadState() {
-  try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; }
+  // Current storage key.
+  try {
+    const current = JSON.parse(localStorage.getItem(KEY));
+    if (looksLikeCoachState(current)) return current;
+  } catch {}
+
+  // Migration: older coach versions used different storage keys.
+  const legacyKeys = [
+    "staemmeCoachState",
+    "staemmeCoachStateV3",
+    "staemmeCoachStateV4",
+    "staemmeCoachData",
+    "staemme-coach-state",
+    "coachData"
+  ];
+
+  for (const key of legacyKeys) {
+    try {
+      const candidate = JSON.parse(localStorage.getItem(key));
+      if (looksLikeCoachState(candidate)) {
+        localStorage.setItem(KEY, JSON.stringify(candidate));
+        return candidate;
+      }
+    } catch {}
+  }
+
+  // Last-resort migration: scan only localStorage values that resemble coach data.
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key || !/staemme|coach/i.test(key)) continue;
+    try {
+      const candidate = JSON.parse(localStorage.getItem(key));
+      if (looksLikeCoachState(candidate)) {
+        localStorage.setItem(KEY, JSON.stringify(candidate));
+        return candidate;
+      }
+    } catch {}
+  }
+
+  return null;
 }
 function loadSettings() {
   try {
@@ -241,6 +288,15 @@ function costText(c) {
   return `${fmt(c.wood)} Holz · ${fmt(c.clay)} Lehm · ${fmt(c.iron)} Eisen`;
 }
 function renderPlanner() {
+  if (!looksLikeCoachState(state)) {
+    $("nextBuild").textContent = "–";
+    $("buildWhy").textContent = "Nach der ersten Synchronisierung erscheint hier die Empfehlung.";
+    $("buildCost").textContent = "–";
+    $("buildAvailability").textContent = "–";
+    $("alternatives").innerHTML = "";
+    $("plannerDebug").textContent = "Noch keine Spieldaten.";
+    return;
+  }
   const ranked = rankBuildings();
   const top = ranked[0];
   if (!top) return;
@@ -310,6 +366,57 @@ function renderBuildings() {
     b.appendChild(row);
   });
 }
+function gameUrl() {
+  const world = state?.page?.world || "de256";
+  const villageId = state?.village?.id || state?.page?.villageId;
+  const url = new URL(`https://${world}.die-staemme.de/game.php`);
+  url.searchParams.set("screen", "overview");
+  if (villageId) url.searchParams.set("village", villageId);
+  return url.href;
+}
+
+function updateGameLinks() {
+  const url = gameUrl();
+  const newTab = $("openGame");
+  const sameTab = $("openGameSameTab");
+  if (newTab) newTab.href = url;
+  if (sameTab) sameTab.href = url;
+}
+
+function syncAge() {
+  const time = Date.parse(state?.capturedAt || "");
+  if (!Number.isFinite(time)) return null;
+  return Math.max(0, Date.now() - time);
+}
+
+function syncAgeText(ms) {
+  if (ms === null) return "Noch nie synchronisiert";
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return "Gerade eben synchronisiert";
+  if (minutes < 60) return `Vor ${minutes} Min. synchronisiert`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Vor ${hours} Std. synchronisiert`;
+  const days = Math.floor(hours / 24);
+  return `Vor ${days} Tag${days === 1 ? "" : "en"} synchronisiert`;
+}
+
+function renderSyncStatus() {
+  const hasData = looksLikeCoachState(state);
+  const empty = $("emptyState");
+  const sync = $("syncStatus");
+  const age = syncAge();
+
+  empty.hidden = hasData;
+  sync.hidden = !hasData;
+
+  if (!hasData) return;
+
+  sync.className = "status " + (age !== null && age > 30 * 60000 ? "bad" : "good");
+  sync.innerHTML = age !== null && age > 30 * 60000
+    ? `<strong>⚠ Daten veraltet:</strong> ${syncAgeText(age)}`
+    : `<strong>✓ ${syncAgeText(age)}</strong>`;
+}
+
 function render() {
   const v = state.village || {};
   $("village").textContent = `${v.name || "Dorf"}${v.x != null ? ` (${v.x}|${v.y}) K${v.continent ?? "–"}` : ""}`;
@@ -321,6 +428,8 @@ function render() {
   $("storage").textContent = fmt(state.resources?.storage);
   $("pop").textContent = `${fmt(state.population?.current)} / ${fmt(state.population?.max)}`;
   $("queueDuration").textContent = durationText(queueSeconds());
+  updateGameLinks();
+  renderSyncStatus();
   $("mode").value = settings.mode;
   $("horizon").value = settings.horizon;
   $("horizonValue").textContent = `${settings.horizon} Std.`;
@@ -351,18 +460,18 @@ $("mode").onchange = (e) => {
 $("horizon").oninput = (e) => {
   settings.horizon = +e.target.value; saveSettings(); render();
 };
-$("openGame").onclick = () => {
-  const world = state.page?.world || "de256";
-  location.href = `https://${world}.die-staemme.de/game.php?screen=overview`;
-};
+// Spiel-Links are normal anchors. This is more reliable on Android/PWA than window.open().
+$("openGame").addEventListener("click", () => {
+  setTimeout(() => toast("Im Spiel unten rechts auf „Coach aktualisieren“ tippen."), 250);
+});
 $("importJson").onclick = () => {
   try { saveState(JSON.parse($("raw").value)); toast("JSON importiert."); }
   catch { toast("Ungültiges JSON."); }
 };
 
 const fallback = {
-  page:{world:"de256"}, village:{name:"Noch keine Daten"}, resources:{},
-  population:{}, production:{}, buildings:{}, buildQueue:[], units:{},
+  page:{world:"de256"}, village:{name:"Noch keine Daten"}, resources:null,
+  population:null, production:null, buildings:null, buildQueue:[], units:null,
   completeness:{}
 };
 state = loadState() || fallback;
