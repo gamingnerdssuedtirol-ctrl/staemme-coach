@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Stämme Coach Aktualisieren
 // @namespace    staemme-coach
-// @version      0.5.3
+// @version      0.5.4
 // @description  Liest vollständige Dorfdaten aus Die Stämme und öffnet den Stämme Coach.
 // @match        https://*.die-staemme.de/game.php*
 // @grant        none
@@ -22,8 +22,25 @@
 
   const toNumber = (value) => {
     if (value === null || value === undefined || value === "") return null;
+
+    const text = clean(value);
+
+    // Unterstützt gekürzte Anzeigen wie 10.6K oder 1,25M.
+    // In der deutschen Spieloberfläche kann ein Punkt entweder
+    // Tausendertrennzeichen oder Dezimaltrennzeichen vor K/M sein.
+    const compact = text.match(/^(-?[\d.,]+)\s*([KMB])$/i);
+    if (compact) {
+      const suffix = compact[2].toUpperCase();
+      const multiplier = suffix === "K" ? 1_000 : suffix === "M" ? 1_000_000 : 1_000_000_000;
+      const normalized = compact[1]
+        .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+        .replace(",", ".");
+      const parsedCompact = Number.parseFloat(normalized);
+      return Number.isFinite(parsedCompact) ? Math.round(parsedCompact * multiplier) : null;
+    }
+
     const parsed = parseInt(
-      clean(value).replace(/\./g, "").replace(/[^\d-]/g, ""),
+      text.replace(/\./g, "").replace(/[^\d-]/g, ""),
       10
     );
     return Number.isFinite(parsed) ? parsed : null;
@@ -78,21 +95,27 @@
 
   const parseVisibleResources = () => {
     const village = gameData().village || {};
+
+    // game_data enthält normalerweise die exakten Werte.
+    // Die sichtbare mobile Anzeige kann dagegen gekürzt sein (z. B. 10.6K).
+    const exactWood = toNumber(village.wood);
+    const exactClay = toNumber(village.stone) ?? toNumber(village.clay);
+    const exactIron = toNumber(village.iron);
+    const exactStorage = toNumber(village.storage_max) ?? toNumber(village.storage);
+
     return {
       wood:
-        firstNumber(document, ["#wood", "[data-resource='wood']", "[data-res='wood']"]) ??
-        toNumber(village.wood),
+        exactWood ??
+        firstNumber(document, ["#wood", "[data-resource='wood']", "[data-res='wood']"]),
       clay:
-        firstNumber(document, ["#stone", "[data-resource='stone']", "[data-res='stone']"]) ??
-        toNumber(village.stone) ??
-        toNumber(village.clay),
+        exactClay ??
+        firstNumber(document, ["#stone", "[data-resource='stone']", "[data-res='stone']"]),
       iron:
-        firstNumber(document, ["#iron", "[data-resource='iron']", "[data-res='iron']"]) ??
-        toNumber(village.iron),
+        exactIron ??
+        firstNumber(document, ["#iron", "[data-resource='iron']", "[data-res='iron']"]),
       storage:
-        firstNumber(document, ["#storage", "[data-resource='storage']", "[data-res='storage']"]) ??
-        toNumber(village.storage_max) ??
-        toNumber(village.storage)
+        exactStorage ??
+        firstNumber(document, ["#storage", "[data-resource='storage']", "[data-res='storage']"])
     };
   };
 
@@ -511,7 +534,7 @@
 
       const data = {
         schemaVersion: 5,
-        parserVersion: "0.5.3",
+        parserVersion: "0.5.4",
         capturedAt: new Date().toISOString(),
         page: {
           world: meta.world,
@@ -535,8 +558,8 @@
         effects,
         completeness,
         diagnostics: {
-          resourcesSource: "visible-page/game_data",
-          buildingParser: "heading-alias-v0.5.3",
+          resourcesSource: "game_data-first/compact-number-fallback",
+          buildingParser: "heading-alias-v0.5.4",
           buildingsFound: Object.values(buildings).filter((level) => level > 0).length,
           unbuiltBuildings: Object.entries(buildings)
             .filter(([, level]) => level === 0)

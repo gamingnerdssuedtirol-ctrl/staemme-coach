@@ -1,48 +1,72 @@
-# Stämme Coach v1.2.1 – Cache-Fix
+# Stämme Coach v2.0 – Coach-Analyse
 
-## Ursache
+## Neu
 
-Auf deinem Screenshot steht zwar `v1.2`, aber die sichtbare Oberfläche ist weiterhin die alte Version.
+### Strategische Bewertung von 0 bis 100
 
-Das bedeutet: `index.html` wurde aktualisiert, während der Browser bzw. Service Worker noch die alte `app.js` aus dem Cache geladen hat.
+Der Coach bewertet die aktuelle Hauptempfehlung und zeigt:
 
-## Behoben
+- strategischen Fokus
+- erkannte Spielphase
+- verständliche Begründung
+- wichtigste Bauaktion
+- wichtigste Truppenaktion
 
-Version 1.2.1 verwendet eine vollständig neue JavaScript-Datei:
+Die Bewertung basiert weiterhin lokal auf nachvollziehbaren Regeln und Simulationen. Es werden keine Daten an einen KI-Dienst übertragen.
 
-`app-v121.js`
+### Risiken und Engpässe
 
-Dadurch kann der Browser nicht mehr versehentlich die alte `app.js` laden.
+Der Coach warnt unter anderem vor:
 
-Zusätzlich:
+- leerer oder bald endender Bauschleife
+- vollem Speicher
+- knapper Bevölkerung
+- stark unausgeglichener Rohstoffproduktion
 
-- neuer Service-Worker-Cache
-- automatische Löschung alter Coach-Caches
-- sichtbare Build-Anzeige `Build 1.2.1`
-- interaktive Funktionen werden dadurch zuverlässig geladen
+### Prognose für 12 bis 48 Stunden
+
+Der Coach berechnet:
+
+- voraussichtliches Holz
+- voraussichtlichen Lehm
+- voraussichtliches Eisen
+- erwarteten Speicherüberlauf
+
+### Zielplaner
+
+Auswählbare Ziele:
+
+- Adelshof freischalten
+- 100 oder 500 Leichte Kavallerie
+- 500 oder 1.000 Axtkämpfer
+- alle Rohstoffgebäude auf Stufe 25
+
+Der Coach zeigt:
+
+- aktuellen Fortschritt
+- fehlende Stufen oder Truppen
+- grobe geschätzte Dauer
+- mögliche Blockaden
 
 ## Installation
 
+### GitHub-PWA
+
 1. ZIP entpacken.
-2. **Alle Dateien** in dein GitHub-Repository hochladen.
-3. Vorhandene Dateien ersetzen.
-4. Die alte Datei `app.js` im Repository darf gelöscht werden.
-5. Commit bestätigen.
-6. Coach öffnen.
+2. Alle PWA-Dateien in das Repository `staemme-coach` hochladen.
+3. Alte App-Dateien wie `app-v121.js` dürfen gelöscht werden.
+4. Commit bestätigen.
+5. Coach neu öffnen.
 
 Oben muss stehen:
 
-- `v1.2.1`
-- `Build 1.2.1`
+- `v2.0`
+- `Build 2.0`
 
-Danach die Seite einmal vollständig neu laden.
+### Tampermonkey
 
-## Sichtbare Änderungen
+Das enthaltene Script ist Parser v0.5.4 mit dem bereits korrigierten Ressourcenparser. Es muss nur ersetzt werden, falls du noch eine ältere Parser-Version verwendest.
 
-Nach erfolgreichem Update siehst du:
+## Hinweis zu Zeitprognosen
 
-- `Erledigt`- und `Anpinnen`-Buttons bei Bauempfehlungen
-- Strategie standardmäßig nur mit fünf Schritten
-- Button `Weitere Schritte anzeigen`
-- aufklappbare Truppenempfehlungen
-- Verlauf-Bereich
+Die nächste auswählbare Gebäudestufe nutzt die aus dem Spiel gelesene Bauzeit. Spätere Folgestufen sowie Ausbildungszeiten bleiben als strategische Näherung berechnet.

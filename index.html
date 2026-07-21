@@ -28,6 +28,14 @@ select,input[type=range]{width:100%}.controls{display:grid;grid-template-columns
 .attention{font-size:10px;font-weight:900;border-radius:99px;padding:4px 7px}.attention.low{background:#dff2e3;color:#276d37}.attention.medium{background:#fff0c8;color:#805c00}.attention.high{background:#f7d6cf;color:#9a2f1d}
 .account-grid,.overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.account-grid div,.overview-grid div{background:#f2dfca;border-radius:9px;padding:9px}.account-grid span,.overview-grid span{display:block;font-size:11px}.account-grid strong,.overview-grid strong{font-size:17px}
 .progress-item{margin:11px 0}.progress-item>div:first-child{display:flex;justify-content:space-between;font-size:13px}.progress-track{height:12px;background:#ead7c1;border-radius:99px;overflow:hidden;margin-top:5px}.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#8f3b15,#d17a31);transition:width .3s}
+.coach-analysis-card h3{font-size:14px;margin:15px 0 8px}
+.score-pill{background:var(--brown);color:#fff;border-radius:99px;padding:5px 10px;font-weight:900}
+.score-track{height:14px;background:#ead7c1;border-radius:99px;overflow:hidden;margin:9px 0 12px}.score-fill{height:100%;width:0;background:linear-gradient(90deg,#8f3b15,#df8b36);transition:width .3s}
+.coach-headline,.coach-actions-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.coach-headline div,.coach-actions-grid div{background:#f2dfca;border-radius:9px;padding:9px}.coach-headline span,.coach-actions-grid span{display:block;font-size:11px}.coach-headline strong,.coach-actions-grid strong{display:block;margin-top:3px}
+.coach-risk{border-radius:8px;padding:8px;margin:5px 0;font-size:12px}.coach-risk.low{background:#dff2e3;color:#276d37}.coach-risk.medium{background:#fff0c8;color:#805c00}.coach-risk.high{background:#f7d6cf;color:#9a2f1d}
+.coach-settings{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.coach-settings label{font-size:12px;font-weight:700}.coach-settings select{width:100%}
+.forecast-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.forecast-grid div{background:#f2dfca;border-radius:9px;padding:9px;text-align:center}.forecast-grid span{display:block;font-size:11px}
+.goal-card{background:#f2dfca;border-radius:10px;padding:11px;margin-top:10px}.goal-card span,.goal-card strong,.goal-card b,.goal-card small{display:block}.goal-card strong{font-size:17px;margin-top:3px}.goal-card b{margin-top:5px}.goal-card small{margin-top:5px}
 .hidden{display:none!important}
 .recommendation-actions{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
 .action-button{width:auto;margin:0;padding:6px 9px;border-radius:8px;font-size:10px;background:#f2dfca;color:#5b260d;border:1px solid var(--line)}
@@ -60,7 +68,7 @@ textarea,pre{width:100%;min-height:140px;border:1px solid var(--line);border-rad
 details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,20px);background:#222;color:#fff;padding:11px 16px;border-radius:99px;opacity:0;transition:.2s;z-index:5;max-width:90%;text-align:center}#toast.show{opacity:1;transform:translate(-50%,0)}
 @media(max-width:520px){.resources{grid-template-columns:repeat(2,1fr)}.grid,.controls{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>Stämme Coach <small>v1.2.1</small></h1><div class="sub"><span class="runtime-version">Build 1.2.1</span> · <span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
+<header><h1>Stämme Coach <small>v2.0</small></h1><div class="sub"><span class="runtime-version">Build 2.0</span> · <span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
 <main>
 <div id="dataStatus" class="status"></div>
 <section class="card">
@@ -119,6 +127,49 @@ details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bo
 </section>
 <section class="card"><h2>Beste Bauempfehlung</h2><div class="hero" id="nextBuild">–</div><p id="buildWhy">–</p><div class="cost"><strong>Kosten:</strong> <span id="buildCost">–</span><br><span id="buildAvailability">–</span></div>
 <div id="buildActions"></div></section>
+<section class="card coach-analysis-card">
+<div class="section-title-row"><h2>🧠 Coach-Analyse</h2><span id="coachScore" class="score-pill">–</span></div>
+<div class="score-track"><div id="coachScoreBar" class="score-fill"></div></div>
+<div class="coach-headline">
+  <div><span>Strategischer Fokus</span><strong id="coachFocus">–</strong></div>
+  <div><span>Spielphase</span><strong id="coachPhase">–</strong></div>
+</div>
+<p id="coachExplanation">–</p>
+<div class="coach-actions-grid">
+  <div><span>Jetzt bauen</span><strong id="coachBuild">–</strong></div>
+  <div><span>Jetzt rekrutieren</span><strong id="coachTroop">–</strong></div>
+</div>
+<h3>Risiken und Engpässe</h3>
+<div id="coachRisks"></div>
+
+<div class="coach-settings">
+<label>Prognose: <span id="forecastHoursValue">24 Std.</span><input id="forecastHours" type="range" min="12" max="48" step="12" value="24"></label>
+<label>Ziel<select id="coachGoal">
+<option value="snob">Adelshof freischalten</option>
+<option value="light100">100 Leichte Kavallerie</option>
+<option value="light500">500 Leichte Kavallerie</option>
+<option value="axe500">500 Axtkämpfer</option>
+<option value="axe1000">1.000 Axtkämpfer</option>
+<option value="eco25">Rohstoffgebäude auf 25</option>
+</select></label>
+</div>
+
+<h3 id="forecastTitle">Prognose</h3>
+<div class="forecast-grid">
+  <div><span>Holz</span><strong id="forecastWood">–</strong></div>
+  <div><span>Lehm</span><strong id="forecastClay">–</strong></div>
+  <div><span>Eisen</span><strong id="forecastIron">–</strong></div>
+</div>
+<p id="forecastOverflow" class="muted">–</p>
+
+<div class="goal-card">
+  <span>Gewähltes Ziel</span>
+  <strong id="goalName">–</strong>
+  <b id="goalEta">–</b>
+  <small id="goalDetails">–</small>
+</div>
+<details><summary>Coach-Diagnose</summary><pre id="coachDebug"></pre></details>
+</section>
 <section class="card">
 <h2>Truppenübersicht</h2>
 <div class="overview-grid">
@@ -169,4 +220,4 @@ details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bo
 <section class="card"><details><summary>Planer-Diagnose</summary><pre id="plannerDebug"></pre></details></section>
 <section class="card"><details><summary>JSON / Fehlerdiagnose</summary><textarea id="raw"></textarea><button id="importJson">JSON importieren</button></details></section>
 <p class="muted">Der Planer führt keine Spielaktion aus. Die Empfehlungen sind eine Entscheidungshilfe und berücksichtigen Queue, Rohstoffe, Produktion, Bevölkerung und Dorfziel.</p>
-</main><div id="toast"></div><script src="app-v121.js"></script></body></html>
+</main><div id="toast"></div><script src="app-v20.js"></script></body></html>
