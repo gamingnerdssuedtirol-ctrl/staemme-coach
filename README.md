@@ -1,55 +1,48 @@
-# Stämme Coach v1.2 – Interaktive Strategie
+# Stämme Coach v1.2.1 – Cache-Fix
 
-## Neu
+## Ursache
 
-### Empfehlungen erledigen
+Auf deinem Screenshot steht zwar `v1.2`, aber die sichtbare Oberfläche ist weiterhin die alte Version.
 
-Bauempfehlungen können als `Erledigt` markiert werden. Der Coach nimmt sie aus der aktuellen Priorität und berechnet die Strategie neu.
+Das bedeutet: `index.html` wurde aktualisiert, während der Browser bzw. Service Worker noch die alte `app.js` aus dem Cache geladen hat.
 
-Mit `Rückgängig` kann die Markierung entfernt werden.
+## Behoben
 
-### Empfehlungen anpinnen
+Version 1.2.1 verwendet eine vollständig neue JavaScript-Datei:
 
-Ein gewünschter Ausbau kann angepinnt werden, zum Beispiel:
+`app-v121.js`
 
-`Stall 5`
+Dadurch kann der Browser nicht mehr versehentlich die alte `app.js` laden.
 
-Der angepinnte Ausbau erhält in der Strategie eine sehr hohe Priorität. Mit `Angepinnt` kann die Vorgabe wieder aufgehoben werden.
+Zusätzlich:
 
-Die Einstellungen werden getrennt für jedes Dorf gespeichert.
-
-### Kompaktere Oberfläche
-
-- Beste Bauempfehlung direkt unter dem Live-Dashboard
-- Strategie zeigt standardmäßig nur die ersten fünf Schritte
-- weitere Schritte über einen Button einblendbar
-- Truppenempfehlungen zeigen zunächst nur die Kurzfassung
-- Kosten und Zeit werden per Antippen aufgeklappt
-
-### Verlauf
-
-Pro Dorf werden die letzten 30 Synchronisierungen gespeichert.
-
-Der Verlauf zeigt unter anderem Veränderungen bei:
-
-- Holz
-- Lehm
-- Eisen
-- Leichter Kavallerie
-- Axtkämpfern
-
-Für einen Vergleich sind mindestens zwei Synchronisierungen desselben Dorfes erforderlich.
+- neuer Service-Worker-Cache
+- automatische Löschung alter Coach-Caches
+- sichtbare Build-Anzeige `Build 1.2.1`
+- interaktive Funktionen werden dadurch zuverlässig geladen
 
 ## Installation
 
-Das Tampermonkey-Script v0.5.3 bleibt unverändert.
-
 1. ZIP entpacken.
-2. Alle PWA-Dateien in das GitHub-Repository `staemme-coach` hochladen.
-3. Bestehende Dateien ersetzen.
-4. Commit bestätigen.
-5. Coach neu laden.
+2. **Alle Dateien** in dein GitHub-Repository hochladen.
+3. Vorhandene Dateien ersetzen.
+4. Die alte Datei `app.js` im Repository darf gelöscht werden.
+5. Commit bestätigen.
+6. Coach öffnen.
 
-Oben muss `v1.2` stehen.
+Oben muss stehen:
 
-Falls weiterhin eine ältere Version erscheint, den Website-Cache der Coach-Seite löschen und erneut öffnen.
+- `v1.2.1`
+- `Build 1.2.1`
+
+Danach die Seite einmal vollständig neu laden.
+
+## Sichtbare Änderungen
+
+Nach erfolgreichem Update siehst du:
+
+- `Erledigt`- und `Anpinnen`-Buttons bei Bauempfehlungen
+- Strategie standardmäßig nur mit fünf Schritten
+- Button `Weitere Schritte anzeigen`
+- aufklappbare Truppenempfehlungen
+- Verlauf-Bereich
