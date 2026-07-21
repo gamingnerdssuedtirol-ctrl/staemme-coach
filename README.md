@@ -1,40 +1,65 @@
-# Stämme Coach v0.6.1
+# Stämme Coach v0.7.1 – exakte Bauzeiten
 
-Diese Version behebt den leeren Coach und verbessert die Funktion „Spiel öffnen“.
+## Was jetzt exakt ist
 
-## Änderungen
+Das neue Tampermonkey-Script v0.5.3 liest auf der Hauptgebäude-Seite für jedes Gebäude:
 
-- „Spiel in neuem Tab öffnen“ ist jetzt ein normaler Link und funktioniert auf Android zuverlässiger.
-- Zusätzlich gibt es „Spiel im selben Tab öffnen“ als Ausweichmöglichkeit.
-- Der Link öffnet direkt Welt `de256` und – sobald Daten vorhanden sind – das zuletzt synchronisierte Dorf.
-- Ältere gespeicherte Coach-Daten werden automatisch aus früheren LocalStorage-Schlüsseln übernommen.
-- Ohne Spieldaten erscheint eine klare Anleitung statt einer scheinbar kaputten Oberfläche.
-- Synchronisationsstatus:
-  - gerade eben / vor X Minuten
-  - Warnung ab 30 Minuten
-- Neuer Service-Worker-Cache, damit das Handy nicht bei v0.6 hängen bleibt.
+- die aktuell auswählbare nächste Stufe
+- die vom Spiel berechnete Bauzeit
+- soweit im HTML vorhanden auch die angezeigten Rohstoffkosten
 
-## Installation auf GitHub
+Die vom Spiel angezeigte Bauzeit enthält bereits:
 
-1. ZIP entpacken.
-2. Alle enthaltenen Dateien in das Repository `staemme-coach` hochladen.
-3. Vorhandene Dateien ersetzen.
-4. Commit bestätigen.
-5. GitHub Pages neu öffnen.
+- Weltgeschwindigkeit
+- aktuelle Hauptgebäudestufe
+- aktive Baugeschwindigkeits-Effekte
+- serverseitige Modifikatoren
 
-Oben muss `v0.6.1` stehen.
+## Wichtige technische Grenze
 
-## Wichtig bei altem Cache
+Exakt auslesbar ist immer die **aktuell auswählbare nächste Stufe** eines Gebäudes.
 
-Falls weiterhin v0.6 angezeigt wird:
+Beispiel:
 
-1. Seite einmal neu laden.
-2. Browser-Menü öffnen.
-3. „Website-Daten löschen“ oder „Cache leeren“ für die Coach-Seite.
-4. Coach erneut öffnen.
+- Schmiede ist Stufe 6
+- Schmiede 7: exakt
+- Schmiede 8: auf der aktuellen Seite noch nicht auswählbar und deshalb zunächst geschätzt
 
-Danach:
+Nach jedem erneuten „Coach aktualisieren“ wird die dann nächste Stufe wieder exakt übernommen. Im Strategieplan steht deshalb bei jedem Schritt:
 
-1. „Spiel in neuem Tab öffnen“ drücken.
-2. Im Spiel unten rechts „Coach aktualisieren“ drücken.
-3. Der Coach öffnet sich mit den aktuellen Daten.
+- `exakt bis …`
+- oder `geschätzt bis …`
+
+So behauptet der Coach nicht fälschlich, eine hochgerechnete Zeit sei exakt.
+
+## Installation
+
+### 1. GitHub-PWA
+
+Alle Dateien außer `staemme-coach.user.js` in das Repository `staemme-coach` hochladen und bestehende Dateien ersetzen.
+
+Danach muss oben `v0.7.1` stehen.
+
+### 2. Tampermonkey
+
+1. Tampermonkey öffnen.
+2. „Stämme Coach Aktualisieren“ öffnen.
+3. Alten Inhalt vollständig löschen.
+4. Inhalt von `staemme-coach.user.js` einfügen.
+5. Speichern.
+6. Die Stämme neu laden.
+7. „Coach aktualisieren“ drücken.
+
+Im JSON sollte danach stehen:
+
+```json
+"parserVersion": "0.5.3"
+```
+
+Unter `diagnostics` erscheint:
+
+```json
+"exactBuildTimesFound": 13
+```
+
+Die Zahl kann je nach sichtbaren bzw. ausbaubaren Gebäuden abweichen.

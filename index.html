@@ -19,11 +19,17 @@ select,input[type=range]{width:100%}.controls{display:grid;grid-template-columns
 .cost{background:#f2dfca;border-radius:9px;padding:9px;margin-top:10px;font-size:13px}.recommendation{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid #ead7c1}
 .recommendation small{display:block;margin-top:3px}.queue{padding:0;margin:0;list-style:none}.queue li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #ead7c1}
 .buildings{display:grid;grid-template-columns:1fr 1fr;gap:7px}.buildings div{display:flex;justify-content:space-between;background:#f2dfca;border-radius:8px;padding:8px}
+.phase,.strategy-target{display:flex;justify-content:space-between;gap:12px;align-items:center;background:#f2dfca;border-radius:10px;padding:10px;margin-bottom:9px}
+.phase span,.strategy-target span{font-size:12px}.strategy-target strong{font-size:18px}
+.strategy-step{display:grid;grid-template-columns:34px 1fr auto;gap:9px;align-items:start;padding:11px 0;border-bottom:1px solid #ead7c1}
+.strategy-number{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--brown);color:white;font-weight:800}
+.strategy-main small,.strategy-time small{display:block;margin-top:3px}.strategy-time{text-align:right;white-space:nowrap}
+.estimate-note{font-size:11px;background:#fff0d5;border:1px solid #d29a45;border-radius:9px;padding:8px}
 textarea,pre{width:100%;min-height:140px;border:1px solid var(--line);border-radius:10px;padding:9px;font-family:monospace;font-size:11px;white-space:pre-wrap;background:white}
 details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,20px);background:#222;color:#fff;padding:11px 16px;border-radius:99px;opacity:0;transition:.2s;z-index:5;max-width:90%;text-align:center}#toast.show{opacity:1;transform:translate(-50%,0)}
 @media(max-width:520px){.resources{grid-template-columns:repeat(2,1fr)}.grid,.controls{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>Stämme Coach <small>v0.6.1</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
+<header><h1>Stämme Coach <small>v0.7.1</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
 <main>
 <div id="dataStatus" class="status"></div>
 <section class="card">
@@ -33,8 +39,20 @@ details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bo
 <a id="openGameSameTab" class="button secondary" href="https://de256.die-staemme.de/game.php?screen=overview">Spiel im selben Tab öffnen</a>
 <p class="muted">Im Spiel unten rechts auf <b>Coach aktualisieren</b> tippen. Danach öffnet sich der Coach automatisch mit den neuen Daten.</p>
 </section>
-<section class="card"><h2>Planer-Einstellungen</h2><div class="controls"><label>Dorfziel<select id="mode"><option value="off">OFF-Dorf</option><option value="def">DEF-Dorf</option><option value="balanced">Ausgeglichen</option></select></label><label>Planungsfenster: <span id="horizonValue">8 Std.</span><input id="horizon" type="range" min="1" max="24" step="1" value="8"></label></div></section>
+<section class="card"><h2>Planer-Einstellungen</h2><div class="controls"><label>Dorfziel<select id="mode"><option value="off">OFF-Dorf</option><option value="def">DEF-Dorf</option><option value="balanced">Ausgeglichen</option></select></label><label>Strategie-Zeitraum: <span id="horizonValue">24 Std.</span><input id="horizon" type="range" min="6" max="48" step="6" value="24"></label>
+<label>Planlänge: <span id="strategyDepthValue">8 Schritte</span><input id="strategyDepth" type="range" min="3" max="12" step="1" value="8"></label></div></section>
 <section class="card"><div class="resources"><div class="resource"><span>Holz</span><strong id="wood">–</strong></div><div class="resource"><span>Lehm</span><strong id="clay">–</strong></div><div class="resource"><span>Eisen</span><strong id="iron">–</strong></div><div class="resource"><span>Speicher</span><strong id="storage">–</strong></div></div><p>Bevölkerung: <strong id="pop">–</strong></p></section>
+<section class="card strategy-card">
+<h2>Strategie-KI</h2>
+<div class="phase"><span>Erkannte Spielphase</span><strong id="phaseLabel">–</strong></div>
+<p id="phaseNote" class="muted">–</p>
+<div class="strategy-target"><span>Nächstes strategisches Ziel</span><strong id="strategyTarget">–</strong></div>
+<div id="strategyTimeline"></div>
+<p id="strategyCoverage" class="muted">–</p>
+<p id="exactTimeStatus" class="estimate-note">⏱ Exakte Bauzeiten werden beim nächsten Spiel-Update eingelesen.</p>
+<p class="muted">Die jeweils aktuell auswählbare nächste Stufe wird exakt aus dem Spiel übernommen. Spätere, noch nicht auswählbare Folgestufen bleiben sichtbar als „geschätzt“ markiert.</p>
+<details><summary>Strategie-Diagnose</summary><pre id="strategyDebug"></pre></details>
+</section>
 <section class="card"><h2>Beste Bauempfehlung</h2><div class="hero" id="nextBuild">–</div><p id="buildWhy">–</p><div class="cost"><strong>Kosten:</strong> <span id="buildCost">–</span><br><span id="buildAvailability">–</span></div></section>
 <section class="card"><h2>Alternativen</h2><div id="alternatives"></div></section>
 <section class="card"><h2>Aktuelle Bauschleife</h2><p>Gesamtdauer: <strong id="queueDuration">–</strong></p><ol class="queue" id="queue"></ol></section>

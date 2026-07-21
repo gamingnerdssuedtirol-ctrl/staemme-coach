@@ -2,7 +2,7 @@
 
 const $ = (id) => document.getElementById(id);
 const KEY = "staemmeCoachStateV5";
-const SETTINGS_KEY = "staemmeCoachPlannerV06";
+const SETTINGS_KEY = "staemmeCoachPlannerV07";
 
 let state = null;
 let settings = loadSettings();
@@ -82,11 +82,18 @@ function loadSettings() {
   try {
     return {
       mode: "off",
-      horizon: 8,
+      horizon: 24,
+      strategyDepth: 8,
       ...JSON.parse(localStorage.getItem(SETTINGS_KEY))
     };
   } catch {
-    return { mode: "off", horizon: 8 };
+    // Migrate settings from v0.6.x when available.
+    try {
+      const old = JSON.parse(localStorage.getItem("staemmeCoachPlannerV06"));
+      return { mode: "off", horizon: 24, strategyDepth: 8, ...(old || {}) };
+    } catch {
+      return { mode: "off", horizon: 24, strategyDepth: 8 };
+    }
   }
 }
 function saveSettings() {
@@ -281,8 +288,336 @@ function rankBuildings() {
   }
   return candidates.sort((a,b) => b.score-a.score);
 }
+
+function detectGamePhase(levels) {
+  const snob = levels["Adelshof"] || 0;
+  const hq = levels["Hauptgebäude"] || 0;
+  const smith = levels["Schmiede"] || 0;
+  const market = levels["Marktplatz"] || 0;
+  const ecoAvg = (
+    (levels["Holzfäller"] || 0) +
+    (levels["Lehmgrube"] || 0) +
+    (levels["Eisenmine"] || 0)
+  ) / 3;
+
+  if (snob > 0) return {
+    id: "noble",
+    label: "Adelsphase",
+    note: "Adelshof vorhanden: Wirtschaft, Truppen und Adelsgeschlechter ausbalancieren."
+  };
+  if (hq >= 20 && smith >= 15 && market >= 10) return {
+    id: "noble-prep",
+    label: "Adelshof-Vorbereitung",
+    note: "Die Kernvoraussetzungen sind weit fortgeschritten. Der Weg zum Adelshof wird priorisiert."
+  };
+  if (ecoAvg >= 22 || hq >= 15) return {
+    id: "build-up",
+    label: "Aufbauphase",
+    note: "Wirtschaft und militärische Produktionsgebäude werden gemeinsam ausgebaut."
+  };
+  return {
+    id: "early",
+    label: "Startphase",
+    note: "Schnelle Wirtschaftsentwicklung und grundlegende Militärproduktion stehen im Vordergrund."
+  };
+}
+
+function cloneSimulationState() {
+  return {
+    levels: effectiveLevels(),
+    resources: {
+      wood: state.resources?.wood || 0,
+      clay: state.resources?.clay || 0,
+      iron: state.resources?.iron || 0
+    },
+    production: {
+      wood: state.production?.woodPerHour || 0,
+      clay: state.production?.clayPerHour || 0,
+      iron: state.production?.ironPerHour || 0
+    },
+    storage: state.resources?.storage || Infinity,
+    elapsedHours: queueSeconds() / 3600,
+    queueHours: queueSeconds() / 3600,
+    population: {
+      current: state.population?.current ?? null,
+      max: state.population?.max ?? null
+    }
+  };
+}
+
+function exactBuildOption(name, targetLevel) {
+  const option = state.buildOptions?.[name];
+  if (!option) return null;
+  if (option.targetLevel !== targetLevel) return null;
+  if (!Number.isFinite(option.durationSeconds) || option.durationSeconds <= 0) return null;
+  return option;
+}
+
+function simulatedBuildHours(name, targetLevel, levels) {
+  const exact = exactBuildOption(name, targetLevel);
+  if (exact) return {
+    hours: exact.durationSeconds / 3600,
+    exact: true,
+    source: exact.source || "game-main-page"
+  };
+
+  // Für spätere Stufen, die auf der aktuellen Spielseite noch nicht auswählbar
+  // sind, bleibt eine gekennzeichnete Hochrechnung notwendig.
+  const base = {
+    "Hauptgebäude": 0.45, "Kaserne": 0.55, "Stall": 0.75, "Werkstatt": 0.9,
+    "Schmiede": 0.7, "Marktplatz": 0.55, "Holzfäller": 0.6, "Lehmgrube": 0.6,
+    "Eisenmine": 0.62, "Bauernhof": 0.65, "Speicher": 0.6,
+    "Versteck": 0.35, "Wall": 0.55, "Adelshof": 2.5
+  }[name] || 0.7;
+
+  const hq = levels["Hauptgebäude"] || 1;
+  const hqFactor = clamp(1.35 - hq * 0.017, 0.58, 1.3);
+  const levelFactor = 1 + Math.max(0, targetLevel - 10) * 0.075;
+  return {
+    hours: base * levelFactor * hqFactor,
+    exact: false,
+    source: "strategy-estimate"
+  };
+}
+
+function advanceSimulation(sim, hours) {
+  if (!(hours > 0)) return;
+  sim.resources.wood = Math.min(sim.storage, sim.resources.wood + sim.production.wood * hours);
+  sim.resources.clay = Math.min(sim.storage, sim.resources.clay + sim.production.clay * hours);
+  sim.resources.iron = Math.min(sim.storage, sim.resources.iron + sim.production.iron * hours);
+  sim.elapsedHours += hours;
+}
+
+function simulatedWaitHours(sim, cost) {
+  const parts = [
+    [cost.wood - sim.resources.wood, sim.production.wood],
+    [cost.clay - sim.resources.clay, sim.production.clay],
+    [cost.iron - sim.resources.iron, sim.production.iron]
+  ];
+  return Math.max(...parts.map(([missing, rate]) => {
+    if (missing <= 0) return 0;
+    return rate > 0 ? missing / rate : Infinity;
+  }));
+}
+
+function applyProductionUpgrade(sim, name, oldLevel) {
+  const map = {
+    "Holzfäller": "wood",
+    "Lehmgrube": "clay",
+    "Eisenmine": "iron"
+  };
+  const resource = map[name];
+  if (!resource) return;
+
+  // Relative Näherung aus der aktuellen echten Produktion.
+  const multiplier = oldLevel > 0 ? Math.pow(1.163, 1) : 1;
+  sim.production[resource] *= multiplier;
+}
+
+function applyCapacityUpgrade(sim, name) {
+  if (name === "Speicher" && Number.isFinite(sim.storage)) {
+    sim.storage = Math.round(sim.storage * 1.229);
+  }
+  if (name === "Bauernhof" && Number.isFinite(sim.population.max)) {
+    sim.population.max = Math.round(sim.population.max * 1.17);
+  }
+}
+
+function candidateForSimulation(name, sim, stepIndex) {
+  const level = sim.levels[name] || 0;
+  const originalState = state;
+
+  // Temporarily expose simulated levels/resources to reuse the proven score model.
+  const pseudoState = {
+    ...state,
+    buildings: sim.levels,
+    buildQueue: [],
+    resources: {
+      wood: sim.resources.wood,
+      clay: sim.resources.clay,
+      iron: sim.resources.iron,
+      storage: sim.storage
+    },
+    production: {
+      woodPerHour: sim.production.wood,
+      clayPerHour: sim.production.clay,
+      ironPerHour: sim.production.iron
+    },
+    population: sim.population
+  };
+
+  state = pseudoState;
+  const candidate = scoreCandidate(name, level, sim.levels);
+  state = originalState;
+
+  if (!candidate) return null;
+
+  // Strategy bonuses prevent repeating one building too aggressively.
+  const phase = detectGamePhase(sim.levels);
+  if (phase.id === "build-up" && settings.mode === "off") {
+    if (name === "Stall" && level < 5) candidate.score += 22;
+    if (name === "Kaserne" && level < 7) candidate.score += 14;
+    if (name === "Eisenmine" && level < 22) candidate.score += 12;
+  }
+  if (phase.id === "noble-prep") {
+    if (name === "Schmiede" && level < 20) candidate.score += 24;
+    if (name === "Marktplatz" && level < 10) candidate.score += 24;
+    if (name === "Hauptgebäude" && level < 20) candidate.score += 20;
+  }
+
+  if (stepIndex > 0 && name === "Hauptgebäude") candidate.score -= 4;
+  return candidate;
+}
+
+function buildStrategyPlan() {
+  if (!looksLikeCoachState(state)) return null;
+
+  const sim = cloneSimulationState();
+  const horizon = settings.horizon;
+  const maxSteps = settings.strategyDepth || 8;
+  const steps = [];
+
+  // Existing queue occupies the initial timeline, but resources continue growing.
+  advanceSimulation(sim, sim.queueHours);
+
+  for (let i = 0; i < maxSteps; i++) {
+    const candidates = Object.keys(BUILDING_DATA)
+      .map(name => candidateForSimulation(name, sim, i))
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+
+    const choice = candidates[0];
+    if (!choice) break;
+
+    const wait = simulatedWaitHours(sim, choice.cost);
+    if (!Number.isFinite(wait)) break;
+
+    const duration = simulatedBuildHours(choice.name, choice.target, sim.levels);
+    const buildHours = duration.hours;
+    const startHour = sim.elapsedHours + wait;
+    const finishHour = startHour + buildHours;
+
+    if (startHour > horizon && steps.length > 0) break;
+
+    advanceSimulation(sim, wait);
+    sim.resources.wood -= choice.cost.wood;
+    sim.resources.clay -= choice.cost.clay;
+    sim.resources.iron -= choice.cost.iron;
+
+    const oldLevel = sim.levels[choice.name] || 0;
+    sim.levels[choice.name] = choice.target;
+    advanceSimulation(sim, buildHours);
+    applyProductionUpgrade(sim, choice.name, oldLevel);
+    applyCapacityUpgrade(sim, choice.name);
+
+    steps.push({
+      ...choice,
+      startHour,
+      finishHour,
+      waitHours: wait,
+      buildHours,
+      durationExact: duration.exact,
+      durationSource: duration.source,
+      phase: detectGamePhase(sim.levels).label
+    });
+
+    if (sim.elapsedHours >= horizon) break;
+  }
+
+  return {
+    phase: detectGamePhase(effectiveLevels()),
+    steps,
+    horizon,
+    coveredHours: sim.elapsedHours,
+    remaining: sim.resources
+  };
+}
+
+function clockText(hoursFromNow) {
+  const date = new Date(Date.now() + Math.max(0, hoursFromNow) * 3600000);
+  return date.toLocaleTimeString("de-DE", {hour: "2-digit", minute: "2-digit"});
+}
+
+function renderStrategyPlan() {
+  const plan = buildStrategyPlan();
+  const phaseLabel = $("phaseLabel");
+  const phaseNote = $("phaseNote");
+  const target = $("strategyTarget");
+  const timeline = $("strategyTimeline");
+  const coverage = $("strategyCoverage");
+
+  if (!plan || !plan.steps.length) {
+    phaseLabel.textContent = "–";
+    phaseNote.textContent = "Nach der Synchronisierung wird die Spielphase erkannt.";
+    target.textContent = "–";
+    timeline.innerHTML = "";
+    coverage.textContent = "–";
+    return;
+  }
+
+  phaseLabel.textContent = plan.phase.label;
+  phaseNote.textContent = plan.phase.note;
+  target.textContent = `${plan.steps[0].name} ${plan.steps[0].target}`;
+  coverage.textContent = plan.coveredHours >= plan.horizon
+    ? `Plan deckt ungefähr ${plan.horizon} Stunden ab.`
+    : `Plan deckt ungefähr ${plan.coveredHours.toFixed(1).replace(".", ",")} Stunden ab.`;
+
+  timeline.innerHTML = "";
+  plan.steps.forEach((step, index) => {
+    const row = document.createElement("div");
+    row.className = "strategy-step";
+    row.innerHTML = `
+      <div class="strategy-number">${index + 1}</div>
+      <div class="strategy-main">
+        <strong>${step.name} ${step.target}</strong>
+        <small>${reasonText(step)}</small>
+        <small>${costText(candidateCost(step))}</small>
+      </div>
+      <div class="strategy-time">
+        <strong>${clockText(step.startHour)}</strong>
+        <small>${step.durationExact ? "exakt bis" : "geschätzt bis"} ${clockText(step.finishHour)}</small>
+      </div>`;
+    timeline.appendChild(row);
+  });
+
+  const exactCount = plan.steps.filter(step => step.durationExact).length;
+  $("exactTimeStatus").textContent = exactCount
+    ? `${exactCount} Bauzeit${exactCount === 1 ? "" : "en"} direkt aus dem Spiel übernommen.`
+    : "Noch keine exakte Bauzeit importiert – Tampermonkey-Script v0.5.3 installieren.";
+
+  $("strategyDebug").textContent = JSON.stringify({
+    phase: plan.phase,
+    horizonHours: plan.horizon,
+    coveredHours: Math.round(plan.coveredHours * 100) / 100,
+    note: "Zeitangaben sind strategische Näherungen; echte Bauzeiten können abweichen.",
+    steps: plan.steps.map(step => ({
+      building: step.name,
+      targetLevel: step.target,
+      score: Math.round(step.score * 10) / 10,
+      startInHours: Math.round(step.startHour * 100) / 100,
+      finishInHours: Math.round(step.finishHour * 100) / 100,
+      resourceWaitHours: Math.round(step.waitHours * 100) / 100,
+      buildHours: Math.round(step.buildHours * 100) / 100,
+      durationExact: step.durationExact,
+      durationSource: step.durationSource,
+      reasons: step.reasons
+    }))
+  }, null, 2);
+}
+
 function reasonText(candidate) {
   return candidate.reasons.slice(0, 2).join("; ");
+}
+function candidateCost(candidate) {
+  const exact = state.buildOptions?.[candidate.name];
+  if (exact?.targetLevel === candidate.target && exact.costs) {
+    return {
+      wood: Number.isFinite(exact.costs.wood) ? exact.costs.wood : candidate.cost.wood,
+      clay: Number.isFinite(exact.costs.clay) ? exact.costs.clay : candidate.cost.clay,
+      iron: Number.isFinite(exact.costs.iron) ? exact.costs.iron : candidate.cost.iron
+    };
+  }
+  return candidate.cost;
 }
 function costText(c) {
   return `${fmt(c.wood)} Holz · ${fmt(c.clay)} Lehm · ${fmt(c.iron)} Eisen`;
@@ -303,7 +638,7 @@ function renderPlanner() {
 
   $("nextBuild").textContent = `${top.name} ${top.target}`;
   $("buildWhy").textContent = reasonText(top);
-  $("buildCost").textContent = costText(top.cost);
+  $("buildCost").textContent = costText(candidateCost(top));
   $("buildAvailability").textContent = top.pay.affordable
     ? `innerhalb des Planungsfensters bezahlbar`
     : (Number.isFinite(top.pay.waitHours)
@@ -433,8 +768,11 @@ function render() {
   $("mode").value = settings.mode;
   $("horizon").value = settings.horizon;
   $("horizonValue").textContent = `${settings.horizon} Std.`;
+  $("strategyDepth").value = settings.strategyDepth;
+  $("strategyDepthValue").textContent = `${settings.strategyDepth} Schritte`;
   renderStatus();
   renderPlanner();
+  renderStrategyPlan();
   renderQueue();
   renderBuildings();
   $("raw").value = JSON.stringify(state, null, 2);
@@ -459,6 +797,9 @@ $("mode").onchange = (e) => {
 };
 $("horizon").oninput = (e) => {
   settings.horizon = +e.target.value; saveSettings(); render();
+};
+$("strategyDepth").oninput = (e) => {
+  settings.strategyDepth = +e.target.value; saveSettings(); render();
 };
 // Spiel-Links are normal anchors. This is more reliable on Android/PWA than window.open().
 $("openGame").addEventListener("click", () => {
