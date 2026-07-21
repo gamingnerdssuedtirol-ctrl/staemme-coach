@@ -20,6 +20,11 @@ select,input[type=range]{width:100%}.controls{display:grid;grid-template-columns
 .recommendation small{display:block;margin-top:3px}.queue{padding:0;margin:0;list-style:none}.queue li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #ead7c1}
 .buildings{display:grid;grid-template-columns:1fr 1fr;gap:7px}.buildings div{display:flex;justify-content:space-between;background:#f2dfca;border-radius:8px;padding:8px}
 .dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.troop-row{display:grid;grid-template-columns:30px 1fr auto;gap:9px;align-items:start;padding:10px 0;border-bottom:1px solid #ead7c1}
+.troop-rank{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:var(--brown);color:white;font-weight:800;font-size:12px}
+.troop-main small{display:block;margin-top:3px}.troop-cost{text-align:right;font-size:11px;white-space:nowrap}.troop-cost span{display:block}
+.troop-empty{background:#f2dfca;border-radius:10px;padding:10px}.troop-empty small{display:block;margin-top:4px}
+
 .dash-card{background:#f2dfca;border-radius:10px;padding:10px}
 .dash-card span{display:block;font-size:11px;opacity:.72;margin-bottom:4px}
 .dash-card strong{display:block;font-size:17px}
@@ -35,7 +40,7 @@ textarea,pre{width:100%;min-height:140px;border:1px solid var(--line);border-rad
 details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,20px);background:#222;color:#fff;padding:11px 16px;border-radius:99px;opacity:0;transition:.2s;z-index:5;max-width:90%;text-align:center}#toast.show{opacity:1;transform:translate(-50%,0)}
 @media(max-width:520px){.resources{grid-template-columns:repeat(2,1fr)}.grid,.controls{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>Stämme Coach <small>v0.9</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
+<header><h1>Stämme Coach <small>v1.0</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
 <main>
 <div id="dataStatus" class="status"></div>
 <section class="card">
@@ -66,6 +71,10 @@ details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bo
     <span>Offline-Abdeckung</span>
     <strong id="dashOffline" class="dash-value">–</strong>
   </div>
+  <div class="dash-card">
+    <span>Jetzt rekrutieren</span>
+    <strong id="dashRecruit">–</strong>
+  </div>
 </div>
 <div class="controls compact-controls">
 <label>Geplante Offline-Zeit: <span id="offlineHoursValue">8 Std.</span><input id="offlineHours" type="range" min="1" max="16" step="1" value="8"></label>
@@ -74,6 +83,16 @@ details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bo
 <p class="muted">Die Offline-Info ist jetzt direkt ins Dashboard integriert. Die detaillierte Baufolge steht darunter in der Strategie-KI.</p>
 </section>
 <section class="card"><div class="resources"><div class="resource"><span>Holz</span><strong id="wood">–</strong></div><div class="resource"><span>Lehm</span><strong id="clay">–</strong></div><div class="resource"><span>Eisen</span><strong id="iron">–</strong></div><div class="resource"><span>Speicher</span><strong id="storage">–</strong></div></div><p>Bevölkerung: <strong id="pop">–</strong></p></section>
+<section class="card">
+<h2>⚔️ Truppen-Coach</h2>
+<div class="controls compact-controls">
+<label>Rohstoffreserve für Gebäude: <span id="troopReserveValue">35%</span><input id="troopReserve" type="range" min="0" max="80" step="5" value="35"></label>
+</div>
+<div id="troopRecommendations"></div>
+<div id="troopTotal" class="cost">–</div>
+<p id="troopNote" class="muted">–</p>
+<details><summary>Truppen-Diagnose</summary><pre id="troopDebug"></pre></details>
+</section>
 <section class="card strategy-card">
 <h2>Strategie-KI</h2>
 <div class="phase"><span>Erkannte Spielphase</span><strong id="phaseLabel">–</strong></div>

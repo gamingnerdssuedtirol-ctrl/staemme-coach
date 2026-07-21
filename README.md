@@ -1,22 +1,54 @@
-# Stämme Coach v0.9 – Live-Dashboard
+# Stämme Coach v1.0 – Truppen-Coach
 
-## Änderung
+## Neu
 
-Der separate Offline-Planer wurde entfernt. Seine wichtigsten Informationen sind jetzt direkt oben im kompakten Live-Dashboard integriert.
+Der Coach berechnet jetzt zusätzlich eine sinnvolle Truppenausbildung.
 
-Das Dashboard zeigt:
+### Der Truppen-Coach berücksichtigt
 
-- Jetzt bauen
-- Queue-Ende
-- verbleibende Queue-Zeit
-- Offline-Abdeckung
-- fehlende Zeit oder vorhandene Reserve
+- Dorfziel: OFF, DEF oder ausgeglichen
+- aktuelle Truppenbestände
+- Kaserne, Stall und Werkstatt
+- freie Bevölkerung
+- aktuelle Rohstoffe
+- einstellbare Rohstoffreserve für Gebäude
+- praktische Losgrößen statt unrealistisch großer Aufträge
+- Spielphase und Zielquoten
 
-Die detaillierte Baufolge bleibt in der Strategie-KI darunter erhalten.
+### Anzeige
 
-## Einstellungen
+Der Coach zeigt bis zu drei Empfehlungen, zum Beispiel:
 
-Die geplante Offline-Zeit und die Sicherheitsreserve bleiben einstellbar, aber ohne einen zusätzlichen langen Planer-Bereich.
+- 25 × LK
+- 100 × Axt
+- 20 × Späher
+
+Für jeden Auftrag werden angezeigt:
+
+- benötigtes Produktionsgebäude
+- geschätzte Ausbildungsdauer
+- Rohstoffkosten
+- strategische Begründung
+
+Im Live-Dashboard erscheint zusätzlich:
+
+`Jetzt rekrutieren: 25 LK`
+
+## Rohstoffreserve
+
+Über den Regler legst du fest, wie viel Prozent deiner aktuellen Rohstoffe nicht für Truppen eingeplant werden sollen.
+
+Beispiel:
+
+- 35 % Reserve: ausgewogener Standard
+- 60 % Reserve: stärkerer Fokus auf Gebäude
+- 0 % Reserve: maximale Truppenproduktion
+
+## Wichtiger Hinweis
+
+Die Ausbildung wird nicht automatisch gestartet. Der Coach ist ausschließlich eine Entscheidungshilfe.
+
+Die Ausbildungszeiten sind derzeit Näherungen auf Basis der Stufe von Kaserne, Stall oder Werkstatt. Exakte Ausbildungszeiten können später ebenfalls direkt aus dem Spiel gelesen werden.
 
 ## Installation
 
@@ -28,6 +60,6 @@ Das Tampermonkey-Script v0.5.3 bleibt unverändert.
 4. Commit bestätigen.
 5. Coach neu laden.
 
-Oben muss `v0.9` stehen.
+Oben muss `v1.0` stehen.
 
-Falls noch eine ältere Version erscheint, den Website-Cache der Coach-Seite löschen und die Seite erneut öffnen.
+Falls weiterhin eine ältere Version erscheint, den Website-Cache der Coach-Seite löschen und neu öffnen.

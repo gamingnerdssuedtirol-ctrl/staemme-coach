@@ -86,6 +86,7 @@ function loadSettings() {
       strategyDepth: 8,
       offlineHours: 8,
       offlineBuffer: 30,
+      troopReservePercent: 35,
       ...JSON.parse(localStorage.getItem(SETTINGS_KEY))
     };
   } catch {
@@ -98,6 +99,7 @@ function loadSettings() {
         strategyDepth: 8,
         offlineHours: 8,
         offlineBuffer: 30,
+        troopReservePercent: 35,
         ...(old || {})
       };
     } catch {
@@ -106,7 +108,8 @@ function loadSettings() {
         horizon: 24,
         strategyDepth: 8,
         offlineHours: 8,
-        offlineBuffer: 30
+        offlineBuffer: 30,
+        troopReservePercent: 35
       };
     }
   }
@@ -710,6 +713,237 @@ function queueEndText() {
   });
 }
 
+
+const UNIT_DATA = {
+  spear: { label: "Speerträger", short: "Speer", building: "Kaserne", cost: {wood: 50, clay: 30, iron: 10}, pop: 1, baseSeconds: 720 },
+  sword: { label: "Schwertkämpfer", short: "Schwert", building: "Kaserne", cost: {wood: 30, clay: 30, iron: 70}, pop: 1, baseSeconds: 900 },
+  axe: { label: "Axtkämpfer", short: "Axt", building: "Kaserne", cost: {wood: 60, clay: 30, iron: 40}, pop: 1, baseSeconds: 720 },
+  spy: { label: "Späher", short: "Späher", building: "Stall", cost: {wood: 50, clay: 50, iron: 20}, pop: 2, baseSeconds: 720 },
+  light: { label: "Leichte Kavallerie", short: "LK", building: "Stall", cost: {wood: 125, clay: 100, iron: 250}, pop: 4, baseSeconds: 1800 },
+  heavy: { label: "Schwere Kavallerie", short: "SK", building: "Stall", cost: {wood: 200, clay: 150, iron: 600}, pop: 6, baseSeconds: 3600 },
+  ram: { label: "Rammbock", short: "Ramme", building: "Werkstatt", cost: {wood: 300, clay: 200, iron: 200}, pop: 5, baseSeconds: 4800 },
+  catapult: { label: "Katapult", short: "Katapult", building: "Werkstatt", cost: {wood: 320, clay: 400, iron: 100}, pop: 8, baseSeconds: 7200 }
+};
+
+function unitTrainingSeconds(unitKey, buildingLevel) {
+  const unit = UNIT_DATA[unitKey];
+  if (!unit || !(buildingLevel > 0)) return Infinity;
+  // Conservative approximation based on production-building level.
+  return unit.baseSeconds / Math.pow(1.06, Math.max(0, buildingLevel - 1));
+}
+
+function troopTargets() {
+  const levels = effectiveLevels();
+  const units = state.units || {};
+  const phase = detectGamePhase(levels);
+
+  if (settings.mode === "def") {
+    return {
+      spear: phase.id === "early" ? 250 : 700,
+      sword: phase.id === "early" ? 180 : 600,
+      spy: 50,
+      light: 0,
+      axe: 0
+    };
+  }
+
+  if (settings.mode === "balanced") {
+    return {
+      spear: 150,
+      sword: 120,
+      axe: phase.id === "early" ? 250 : 900,
+      spy: 60,
+      light: phase.id === "early" ? 80 : 350
+    };
+  }
+
+  // OFF village
+  return {
+    spear: 120,
+    sword: 50,
+    axe: phase.id === "early" ? 400 : phase.id === "build-up" ? 1200 : 2500,
+    spy: 80,
+    light: phase.id === "early" ? 120 : phase.id === "build-up" ? 500 : 1200,
+    ram: phase.id === "noble" ? 120 : 0
+  };
+}
+
+function availableForTroops() {
+  const reserve = Math.max(0, Math.min(90, +settings.troopReservePercent || 0)) / 100;
+  const r = state.resources || {};
+  return {
+    wood: Math.max(0, (r.wood || 0) * (1 - reserve)),
+    clay: Math.max(0, (r.clay || 0) * (1 - reserve)),
+    iron: Math.max(0, (r.iron || 0) * (1 - reserve))
+  };
+}
+
+function maxAffordable(unit, resources, freePop) {
+  const byWood = unit.cost.wood > 0 ? Math.floor(resources.wood / unit.cost.wood) : Infinity;
+  const byClay = unit.cost.clay > 0 ? Math.floor(resources.clay / unit.cost.clay) : Infinity;
+  const byIron = unit.cost.iron > 0 ? Math.floor(resources.iron / unit.cost.iron) : Infinity;
+  const byPop = unit.pop > 0 && Number.isFinite(freePop) ? Math.floor(freePop / unit.pop) : Infinity;
+  return Math.max(0, Math.min(byWood, byClay, byIron, byPop));
+}
+
+function consumeUnit(resources, freePop, unit, count) {
+  resources.wood -= unit.cost.wood * count;
+  resources.clay -= unit.cost.clay * count;
+  resources.iron -= unit.cost.iron * count;
+  return Number.isFinite(freePop) ? freePop - unit.pop * count : freePop;
+}
+
+function buildTroopPlan() {
+  if (!looksLikeCoachState(state)) return null;
+
+  const levels = effectiveLevels();
+  const current = state.units || {};
+  const targets = troopTargets();
+  const resources = availableForTroops();
+  let freePop = Number.isFinite(state.population?.max) && Number.isFinite(state.population?.current)
+    ? state.population.max - state.population.current
+    : Infinity;
+
+  const priorities = settings.mode === "def"
+    ? ["spear", "sword", "spy"]
+    : settings.mode === "balanced"
+      ? ["light", "axe", "spy", "spear", "sword"]
+      : ["light", "axe", "spy", "ram"];
+
+  const recommendations = [];
+
+  for (const key of priorities) {
+    const unit = UNIT_DATA[key];
+    if (!unit) continue;
+
+    const buildingLevel = levels[unit.building] || 0;
+    if (buildingLevel <= 0) continue;
+
+    const target = targets[key] || 0;
+    const have = Number.isFinite(current[key]) ? current[key] : 0;
+    const missing = Math.max(0, target - have);
+    if (missing <= 0) continue;
+
+    let affordable = maxAffordable(unit, resources, freePop);
+    if (affordable <= 0) continue;
+
+    // Keep batches practical and avoid spending everything on one unit type.
+    const batchCaps = {
+      spear: 60, sword: 50, axe: 100, spy: 20,
+      light: 25, heavy: 10, ram: 10, catapult: 5
+    };
+    const count = Math.min(missing, affordable, batchCaps[key] || affordable);
+    if (count <= 0) continue;
+
+    freePop = consumeUnit(resources, freePop, unit, count);
+
+    const secondsEach = unitTrainingSeconds(key, buildingLevel);
+    const totalSeconds = secondsEach * count;
+
+    recommendations.push({
+      key,
+      label: unit.label,
+      short: unit.short,
+      building: unit.building,
+      buildingLevel,
+      count,
+      target,
+      have,
+      missingAfter: Math.max(0, missing - count),
+      cost: {
+        wood: unit.cost.wood * count,
+        clay: unit.cost.clay * count,
+        iron: unit.cost.iron * count
+      },
+      pop: unit.pop * count,
+      totalSeconds,
+      finishText: durationText(totalSeconds),
+      reason: key === "light"
+        ? "höchste Priorität für dein OFF-Dorf und schnelles Farmen"
+        : key === "axe"
+          ? "stärkt deine Haupt-Offensive"
+          : key === "spy"
+            ? "verbessert Aufklärung und Farm-Sicherheit"
+            : key === "ram"
+              ? "bereitet Angriffe auf befestigte Dörfer vor"
+              : settings.mode === "def"
+                ? "passt zu deinem DEF-Ziel"
+                : "füllt die empfohlene Truppenquote"
+    });
+
+    if (recommendations.length >= 3) break;
+  }
+
+  const total = recommendations.reduce((acc, item) => {
+    acc.wood += item.cost.wood;
+    acc.clay += item.cost.clay;
+    acc.iron += item.cost.iron;
+    acc.pop += item.pop;
+    return acc;
+  }, {wood: 0, clay: 0, iron: 0, pop: 0});
+
+  return {
+    recommendations,
+    total,
+    reservePercent: settings.troopReservePercent,
+    freePopulationAfter: Number.isFinite(freePop) ? freePop : null,
+    targets
+  };
+}
+
+function renderTroopCoach() {
+  const plan = buildTroopPlan();
+  const list = $("troopRecommendations");
+  const total = $("troopTotal");
+  const note = $("troopNote");
+
+  if (!list || !total || !note) return;
+
+  list.innerHTML = "";
+
+  if (!plan || !plan.recommendations.length) {
+    list.innerHTML = `
+      <div class="troop-empty">
+        <strong>Aktuell keine sinnvolle Ausbildung berechnet.</strong>
+        <small>Entweder reichen die reservierten Rohstoffe nicht, die Zielquote ist erreicht oder das Produktionsgebäude fehlt.</small>
+      </div>`;
+    total.textContent = "–";
+    note.textContent = "Passe bei Bedarf die Rohstoffreserve an.";
+    $("dashRecruit").textContent = "–";
+    return;
+  }
+
+  plan.recommendations.forEach((item, index) => {
+    const row = document.createElement("div");
+    row.className = "troop-row";
+    row.innerHTML = `
+      <div class="troop-rank">${index + 1}</div>
+      <div class="troop-main">
+        <strong>${item.count} × ${item.short}</strong>
+        <small>${item.reason}</small>
+        <small>${item.building} ${item.buildingLevel} · fertig in ca. ${item.finishText}</small>
+      </div>
+      <div class="troop-cost">
+        <span>${fmt(item.cost.wood)} H</span>
+        <span>${fmt(item.cost.clay)} L</span>
+        <span>${fmt(item.cost.iron)} E</span>
+      </div>`;
+    list.appendChild(row);
+  });
+
+  total.innerHTML =
+    `<strong>Gesamt:</strong> ${fmt(plan.total.wood)} Holz · ${fmt(plan.total.clay)} Lehm · ` +
+    `${fmt(plan.total.iron)} Eisen · ${fmt(plan.total.pop)} Bevölkerung`;
+
+  note.textContent =
+    `${plan.reservePercent}% der aktuellen Rohstoffe bleiben für Gebäude reserviert.`;
+
+  const first = plan.recommendations[0];
+  $("dashRecruit").textContent = `${first.count} ${first.short}`;
+
+  $("troopDebug").textContent = JSON.stringify(plan, null, 2);
+}
+
 function renderLiveDashboard() {
   const plan = buildOfflinePlan();
   const strategy = buildStrategyPlan();
@@ -718,6 +952,7 @@ function renderLiveDashboard() {
   $("dashNextBuild").textContent = next
     ? `${next.name} ${next.target}`
     : "–";
+  if ($("dashRecruit")) $("dashRecruit").textContent = "–";
 
   $("dashQueueEnd").textContent = queueEndText();
   $("dashQueueRemaining").textContent = durationText(queueSeconds());
@@ -1018,10 +1253,13 @@ function render() {
   $("offlineHoursValue").textContent = `${settings.offlineHours} Std.`;
   $("offlineBuffer").value = settings.offlineBuffer;
   $("offlineBufferValue").textContent = `${settings.offlineBuffer} Min.`;
+  $("troopReserve").value = settings.troopReservePercent;
+  $("troopReserveValue").textContent = `${settings.troopReservePercent}%`;
   renderStatus();
   renderPlanner();
   renderStrategyPlan();
   renderLiveDashboard();
+  renderTroopCoach();
   renderQueue();
   renderBuildings();
   $("raw").value = JSON.stringify(state, null, 2);
@@ -1055,6 +1293,9 @@ $("offlineHours").oninput = (e) => {
 };
 $("offlineBuffer").oninput = (e) => {
   settings.offlineBuffer = +e.target.value; saveSettings(); render();
+};
+$("troopReserve").oninput = (e) => {
+  settings.troopReservePercent = +e.target.value; saveSettings(); render();
 };
 // Spiel-Links are normal anchors. This is more reliable on Android/PWA than window.open().
 $("openGame").addEventListener("click", () => {
