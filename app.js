@@ -629,20 +629,56 @@ function buildOfflinePlan() {
   if (!looksLikeCoachState(state)) return null;
 
   const targetHours = offlineTargetHours();
-  const strategy = buildStrategyPlan();
-  if (!strategy) return null;
-
+  const sim = cloneSimulationState();
   const queueHours = queueSeconds() / 3600;
   const planned = [];
-  let covered = queueHours;
+  const maxSteps = 20;
 
-  for (const step of strategy.steps) {
-    if (covered >= targetHours) break;
+  // Die laufende Queue zählt vollständig zur Offline-Abdeckung.
+  advanceSimulation(sim, queueHours);
 
-    planned.push(step);
-    covered = Math.max(covered, step.finishHour);
+  for (let i = 0; i < maxSteps && sim.elapsedHours < targetHours; i++) {
+    const candidates = Object.keys(BUILDING_DATA)
+      .map(name => candidateForSimulation(name, sim, i))
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+
+    const choice = candidates[0];
+    if (!choice) break;
+
+    const wait = simulatedWaitHours(sim, choice.cost);
+    if (!Number.isFinite(wait)) break;
+
+    advanceSimulation(sim, wait);
+
+    const duration = simulatedBuildHours(choice.name, choice.target, sim.levels);
+    if (!duration || !Number.isFinite(duration.hours) || duration.hours <= 0) break;
+
+    const startHour = sim.elapsedHours;
+
+    sim.resources.wood -= choice.cost.wood;
+    sim.resources.clay -= choice.cost.clay;
+    sim.resources.iron -= choice.cost.iron;
+
+    const oldLevel = sim.levels[choice.name] || 0;
+    sim.levels[choice.name] = choice.target;
+
+    advanceSimulation(sim, duration.hours);
+    applyProductionUpgrade(sim, choice.name, oldLevel);
+    applyCapacityUpgrade(sim, choice.name);
+
+    planned.push({
+      ...choice,
+      startHour,
+      finishHour: sim.elapsedHours,
+      waitHours: wait,
+      buildHours: duration.hours,
+      durationExact: duration.exact,
+      durationSource: duration.source
+    });
   }
 
+  const covered = sim.elapsedHours;
   const shortage = Math.max(0, targetHours - covered);
   const surplus = Math.max(0, covered - targetHours);
 
@@ -656,7 +692,6 @@ function buildOfflinePlan() {
     enough: covered >= targetHours
   };
 }
-
 function endClockText(hoursFromNow) {
   return new Date(Date.now() + hoursFromNow * 3600000).toLocaleString("de-DE", {
     weekday: "short",
@@ -665,16 +700,71 @@ function endClockText(hoursFromNow) {
   });
 }
 
-function renderOfflinePlanner() {
+
+function queueEndText() {
+  const seconds = queueSeconds();
+  if (!(seconds > 0)) return "Keine laufende Queue";
+  return new Date(Date.now() + seconds * 1000).toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function renderLiveDashboard() {
   const plan = buildOfflinePlan();
+  const strategy = buildStrategyPlan();
+  const next = strategy?.steps?.[0] || rankBuildings()?.[0] || null;
+
+  $("dashNextBuild").textContent = next
+    ? `${next.name} ${next.target}`
+    : "–";
+
+  $("dashQueueEnd").textContent = queueEndText();
+  $("dashQueueRemaining").textContent = durationText(queueSeconds());
+
+  if (!plan) {
+    $("dashOffline").textContent = "Noch keine Daten";
+    $("dashOffline").className = "dash-value";
+    return;
+  }
+
+  if (plan.enough) {
+    $("dashOffline").textContent =
+      `Reicht ${durationText(plan.surplus * 3600)} länger`;
+    $("dashOffline").className = "dash-value good-text";
+  } else {
+    $("dashOffline").textContent =
+      `${durationText(plan.shortage * 3600)} fehlen`;
+    $("dashOffline").className = "dash-value bad-text";
+  }
+}
+
+function renderOfflinePlanner() {
   const result = $("offlineResult");
   const timeline = $("offlineTimeline");
   const warning = $("offlineWarning");
 
+  if (!result || !timeline || !warning) return;
+
+  let plan;
+  try {
+    plan = buildOfflinePlan();
+  } catch (error) {
+    console.error("Offline-Planer:", error);
+    result.className = "status bad";
+    result.innerHTML = `<strong>Offline-Planer konnte nicht berechnet werden.</strong><br>${error.message}`;
+    timeline.innerHTML = "";
+    warning.textContent = "Bitte einmal im Spiel auf „Coach aktualisieren“ tippen.";
+    return;
+  }
+
   if (!plan) {
-    result.textContent = "Nach der Synchronisierung wird dein Offline-Plan berechnet.";
+    result.className = "status bad";
+    result.innerHTML = "<strong>Noch keine Spieldaten.</strong><br>Öffne das Spiel und tippe dort auf „Coach aktualisieren“.";
     timeline.innerHTML = "";
     warning.textContent = "";
+    $("offlineUntil").textContent = "–";
+    $("offlineCoverage").textContent = "–";
     return;
   }
 
@@ -931,7 +1021,7 @@ function render() {
   renderStatus();
   renderPlanner();
   renderStrategyPlan();
-  renderOfflinePlanner();
+  renderLiveDashboard();
   renderQueue();
   renderBuildings();
   $("raw").value = JSON.stringify(state, null, 2);

@@ -1,48 +1,33 @@
-# Stämme Coach v0.8 – Offline-Planer
+# Stämme Coach v0.9 – Live-Dashboard
 
-## Neu
+## Änderung
 
-Der Coach plant jetzt gezielt für deine Abwesenheit.
+Der separate Offline-Planer wurde entfernt. Seine wichtigsten Informationen sind jetzt direkt oben im kompakten Live-Dashboard integriert.
 
-Du stellst ein:
+Das Dashboard zeigt:
 
-- Offline-Zeit von 1 bis 16 Stunden
-- Sicherheitsreserve von 0 bis 120 Minuten
+- Jetzt bauen
+- Queue-Ende
+- verbleibende Queue-Zeit
+- Offline-Abdeckung
+- fehlende Zeit oder vorhandene Reserve
 
-Der Offline-Planer berücksichtigt:
+Die detaillierte Baufolge bleibt in der Strategie-KI darunter erhalten.
 
-- die bereits laufende Bauschleife
-- den strategischen Bauplan
-- Rohstoffwartezeiten
-- exakte Bauzeiten, soweit sie aus dem Spiel importiert wurden
-- geschätzte Zeiten für spätere, noch nicht auswählbare Stufen
+## Einstellungen
 
-## Anzeige
-
-Der Coach zeigt:
-
-- geplante Rückkehrzeit
-- gesamte Queue-Abdeckung
-- vorhandene Bauaufträge
-- zusätzlich empfohlene Gebäude
-- Start- und Endzeit jedes Schritts
-- Warnung, falls die Offline-Zeit noch nicht vollständig abgedeckt ist
-- Zeitreserve, wenn die Queue länger läuft als nötig
-
-## Wichtiger Hinweis
-
-Der Coach führt keine Spielaktion aus. Er stellt nur die empfohlene Reihenfolge zusammen. Die Gebäude müssen weiterhin von dir im Spiel in die Bauschleife gesetzt werden.
+Die geplante Offline-Zeit und die Sicherheitsreserve bleiben einstellbar, aber ohne einen zusätzlichen langen Planer-Bereich.
 
 ## Installation
 
 Das Tampermonkey-Script v0.5.3 bleibt unverändert.
 
 1. ZIP entpacken.
-2. Alle PWA-Dateien in dein GitHub-Repository `staemme-coach` hochladen.
-3. Vorhandene Dateien ersetzen.
+2. Alle PWA-Dateien in das GitHub-Repository `staemme-coach` hochladen.
+3. Bestehende Dateien ersetzen.
 4. Commit bestätigen.
 5. Coach neu laden.
 
-Oben muss `v0.8` stehen.
+Oben muss `v0.9` stehen.
 
-Falls noch eine ältere Version sichtbar ist, den Website-Cache der Coach-Seite löschen und erneut öffnen.
+Falls noch eine ältere Version erscheint, den Website-Cache der Coach-Seite löschen und die Seite erneut öffnen.
