@@ -1,65 +1,48 @@
-# Stämme Coach v0.7.1 – exakte Bauzeiten
+# Stämme Coach v0.8 – Offline-Planer
 
-## Was jetzt exakt ist
+## Neu
 
-Das neue Tampermonkey-Script v0.5.3 liest auf der Hauptgebäude-Seite für jedes Gebäude:
+Der Coach plant jetzt gezielt für deine Abwesenheit.
 
-- die aktuell auswählbare nächste Stufe
-- die vom Spiel berechnete Bauzeit
-- soweit im HTML vorhanden auch die angezeigten Rohstoffkosten
+Du stellst ein:
 
-Die vom Spiel angezeigte Bauzeit enthält bereits:
+- Offline-Zeit von 1 bis 16 Stunden
+- Sicherheitsreserve von 0 bis 120 Minuten
 
-- Weltgeschwindigkeit
-- aktuelle Hauptgebäudestufe
-- aktive Baugeschwindigkeits-Effekte
-- serverseitige Modifikatoren
+Der Offline-Planer berücksichtigt:
 
-## Wichtige technische Grenze
+- die bereits laufende Bauschleife
+- den strategischen Bauplan
+- Rohstoffwartezeiten
+- exakte Bauzeiten, soweit sie aus dem Spiel importiert wurden
+- geschätzte Zeiten für spätere, noch nicht auswählbare Stufen
 
-Exakt auslesbar ist immer die **aktuell auswählbare nächste Stufe** eines Gebäudes.
+## Anzeige
 
-Beispiel:
+Der Coach zeigt:
 
-- Schmiede ist Stufe 6
-- Schmiede 7: exakt
-- Schmiede 8: auf der aktuellen Seite noch nicht auswählbar und deshalb zunächst geschätzt
+- geplante Rückkehrzeit
+- gesamte Queue-Abdeckung
+- vorhandene Bauaufträge
+- zusätzlich empfohlene Gebäude
+- Start- und Endzeit jedes Schritts
+- Warnung, falls die Offline-Zeit noch nicht vollständig abgedeckt ist
+- Zeitreserve, wenn die Queue länger läuft als nötig
 
-Nach jedem erneuten „Coach aktualisieren“ wird die dann nächste Stufe wieder exakt übernommen. Im Strategieplan steht deshalb bei jedem Schritt:
+## Wichtiger Hinweis
 
-- `exakt bis …`
-- oder `geschätzt bis …`
-
-So behauptet der Coach nicht fälschlich, eine hochgerechnete Zeit sei exakt.
+Der Coach führt keine Spielaktion aus. Er stellt nur die empfohlene Reihenfolge zusammen. Die Gebäude müssen weiterhin von dir im Spiel in die Bauschleife gesetzt werden.
 
 ## Installation
 
-### 1. GitHub-PWA
+Das Tampermonkey-Script v0.5.3 bleibt unverändert.
 
-Alle Dateien außer `staemme-coach.user.js` in das Repository `staemme-coach` hochladen und bestehende Dateien ersetzen.
+1. ZIP entpacken.
+2. Alle PWA-Dateien in dein GitHub-Repository `staemme-coach` hochladen.
+3. Vorhandene Dateien ersetzen.
+4. Commit bestätigen.
+5. Coach neu laden.
 
-Danach muss oben `v0.7.1` stehen.
+Oben muss `v0.8` stehen.
 
-### 2. Tampermonkey
-
-1. Tampermonkey öffnen.
-2. „Stämme Coach Aktualisieren“ öffnen.
-3. Alten Inhalt vollständig löschen.
-4. Inhalt von `staemme-coach.user.js` einfügen.
-5. Speichern.
-6. Die Stämme neu laden.
-7. „Coach aktualisieren“ drücken.
-
-Im JSON sollte danach stehen:
-
-```json
-"parserVersion": "0.5.3"
-```
-
-Unter `diagnostics` erscheint:
-
-```json
-"exactBuildTimesFound": 13
-```
-
-Die Zahl kann je nach sichtbaren bzw. ausbaubaren Gebäuden abweichen.
+Falls noch eine ältere Version sichtbar ist, den Website-Cache der Coach-Seite löschen und erneut öffnen.

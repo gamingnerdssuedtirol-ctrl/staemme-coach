@@ -84,15 +84,30 @@ function loadSettings() {
       mode: "off",
       horizon: 24,
       strategyDepth: 8,
+      offlineHours: 8,
+      offlineBuffer: 30,
       ...JSON.parse(localStorage.getItem(SETTINGS_KEY))
     };
   } catch {
     // Migrate settings from v0.6.x when available.
     try {
       const old = JSON.parse(localStorage.getItem("staemmeCoachPlannerV06"));
-      return { mode: "off", horizon: 24, strategyDepth: 8, ...(old || {}) };
+      return {
+        mode: "off",
+        horizon: 24,
+        strategyDepth: 8,
+        offlineHours: 8,
+        offlineBuffer: 30,
+        ...(old || {})
+      };
     } catch {
-      return { mode: "off", horizon: 24, strategyDepth: 8 };
+      return {
+        mode: "off",
+        horizon: 24,
+        strategyDepth: 8,
+        offlineHours: 8,
+        offlineBuffer: 30
+      };
     }
   }
 }
@@ -605,6 +620,145 @@ function renderStrategyPlan() {
   }, null, 2);
 }
 
+
+function offlineTargetHours() {
+  return Math.max(1, +settings.offlineHours || 8) + Math.max(0, +settings.offlineBuffer || 0) / 60;
+}
+
+function buildOfflinePlan() {
+  if (!looksLikeCoachState(state)) return null;
+
+  const targetHours = offlineTargetHours();
+  const strategy = buildStrategyPlan();
+  if (!strategy) return null;
+
+  const queueHours = queueSeconds() / 3600;
+  const planned = [];
+  let covered = queueHours;
+
+  for (const step of strategy.steps) {
+    if (covered >= targetHours) break;
+
+    planned.push(step);
+    covered = Math.max(covered, step.finishHour);
+  }
+
+  const shortage = Math.max(0, targetHours - covered);
+  const surplus = Math.max(0, covered - targetHours);
+
+  return {
+    targetHours,
+    queueHours,
+    planned,
+    covered,
+    shortage,
+    surplus,
+    enough: covered >= targetHours
+  };
+}
+
+function endClockText(hoursFromNow) {
+  return new Date(Date.now() + hoursFromNow * 3600000).toLocaleString("de-DE", {
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function renderOfflinePlanner() {
+  const plan = buildOfflinePlan();
+  const result = $("offlineResult");
+  const timeline = $("offlineTimeline");
+  const warning = $("offlineWarning");
+
+  if (!plan) {
+    result.textContent = "Nach der Synchronisierung wird dein Offline-Plan berechnet.";
+    timeline.innerHTML = "";
+    warning.textContent = "";
+    return;
+  }
+
+  $("offlineUntil").textContent = endClockText(plan.targetHours);
+  $("offlineCoverage").textContent = durationText(plan.covered * 3600);
+
+  if (plan.enough) {
+    result.className = "status good";
+    result.innerHTML =
+      `<strong>✓ Offline-Zeit abgesichert</strong><br>` +
+      `Die geplante Baufolge reicht etwa ${durationText(plan.surplus * 3600)} über deine Rückkehr hinaus.`;
+  } else {
+    result.className = "status bad";
+    result.innerHTML =
+      `<strong>⚠ Noch nicht vollständig abgesichert</strong><br>` +
+      `Es fehlen ungefähr ${durationText(plan.shortage * 3600)} Bauzeit.`;
+  }
+
+  timeline.innerHTML = "";
+
+  const existingQueue = state.buildQueue || [];
+  existingQueue.forEach((item, index) => {
+    const row = document.createElement("div");
+    row.className = "offline-step existing";
+    row.innerHTML = `
+      <div class="offline-icon">Q</div>
+      <div>
+        <strong>${item.building}${item.targetLevel ? ` ${item.targetLevel}` : ""}</strong>
+        <small>bereits in der Bauschleife</small>
+      </div>
+      <div class="offline-time">${item.remainingText || durationText(item.remainingSeconds)}</div>`;
+    timeline.appendChild(row);
+  });
+
+  plan.planned.forEach((step, index) => {
+    const row = document.createElement("div");
+    row.className = "offline-step";
+    row.innerHTML = `
+      <div class="offline-icon">${index + 1}</div>
+      <div>
+        <strong>${step.name} ${step.target}</strong>
+        <small>${step.durationExact ? "exakte" : "geschätzte"} Bauzeit · ${reasonText(step)}</small>
+      </div>
+      <div class="offline-time">
+        ${clockText(step.startHour)}<br>
+        <small>bis ${clockText(step.finishHour)}</small>
+      </div>`;
+    timeline.appendChild(row);
+  });
+
+  if (!plan.planned.length && plan.queueHours >= plan.targetHours) {
+    timeline.innerHTML += `
+      <div class="offline-step existing">
+        <div class="offline-icon">✓</div>
+        <div><strong>Keine weiteren Gebäude nötig</strong><small>Die vorhandene Queue reicht bereits aus.</small></div>
+        <div class="offline-time">${durationText(plan.queueHours * 3600)}</div>
+      </div>`;
+  }
+
+  const exact = plan.planned.filter(step => step.durationExact).length;
+  const estimated = plan.planned.length - exact;
+  warning.textContent = estimated
+    ? `${exact} geplante Bauzeit(en) exakt, ${estimated} geschätzt. Nach jeder Synchronisierung werden weitere Stufen exakt.`
+    : "Alle geplanten zusätzlichen Bauzeiten wurden direkt aus dem Spiel übernommen.";
+
+  $("offlineDebug").textContent = JSON.stringify({
+    offlineHours: settings.offlineHours,
+    bufferMinutes: settings.offlineBuffer,
+    targetHours: Math.round(plan.targetHours * 100) / 100,
+    existingQueueHours: Math.round(plan.queueHours * 100) / 100,
+    coveredHours: Math.round(plan.covered * 100) / 100,
+    enough: plan.enough,
+    shortageHours: Math.round(plan.shortage * 100) / 100,
+    surplusHours: Math.round(plan.surplus * 100) / 100,
+    plannedSteps: plan.planned.map(step => ({
+      building: step.name,
+      targetLevel: step.target,
+      startAt: clockText(step.startHour),
+      finishAt: clockText(step.finishHour),
+      durationExact: step.durationExact
+    }))
+  }, null, 2);
+}
+
 function reasonText(candidate) {
   return candidate.reasons.slice(0, 2).join("; ");
 }
@@ -770,9 +924,14 @@ function render() {
   $("horizonValue").textContent = `${settings.horizon} Std.`;
   $("strategyDepth").value = settings.strategyDepth;
   $("strategyDepthValue").textContent = `${settings.strategyDepth} Schritte`;
+  $("offlineHours").value = settings.offlineHours;
+  $("offlineHoursValue").textContent = `${settings.offlineHours} Std.`;
+  $("offlineBuffer").value = settings.offlineBuffer;
+  $("offlineBufferValue").textContent = `${settings.offlineBuffer} Min.`;
   renderStatus();
   renderPlanner();
   renderStrategyPlan();
+  renderOfflinePlanner();
   renderQueue();
   renderBuildings();
   $("raw").value = JSON.stringify(state, null, 2);
@@ -800,6 +959,12 @@ $("horizon").oninput = (e) => {
 };
 $("strategyDepth").oninput = (e) => {
   settings.strategyDepth = +e.target.value; saveSettings(); render();
+};
+$("offlineHours").oninput = (e) => {
+  settings.offlineHours = +e.target.value; saveSettings(); render();
+};
+$("offlineBuffer").oninput = (e) => {
+  settings.offlineBuffer = +e.target.value; saveSettings(); render();
 };
 // Spiel-Links are normal anchors. This is more reliable on Android/PWA than window.open().
 $("openGame").addEventListener("click", () => {

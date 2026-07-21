@@ -19,6 +19,13 @@ select,input[type=range]{width:100%}.controls{display:grid;grid-template-columns
 .cost{background:#f2dfca;border-radius:9px;padding:9px;margin-top:10px;font-size:13px}.recommendation{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid #ead7c1}
 .recommendation small{display:block;margin-top:3px}.queue{padding:0;margin:0;list-style:none}.queue li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #ead7c1}
 .buildings{display:grid;grid-template-columns:1fr 1fr;gap:7px}.buildings div{display:flex;justify-content:space-between;background:#f2dfca;border-radius:8px;padding:8px}
+.offline-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.offline-summary div{background:#f2dfca;border-radius:10px;padding:9px}
+.offline-summary span,.offline-summary strong{display:block}.offline-summary span{font-size:11px}.offline-summary strong{margin-top:3px}
+.offline-step{display:grid;grid-template-columns:32px 1fr auto;gap:9px;align-items:center;padding:10px 0;border-bottom:1px solid #ead7c1}
+.offline-step.existing{background:#f8ead8;border-radius:9px;padding:9px;margin-bottom:5px}
+.offline-icon{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--brown);color:white;font-weight:800;font-size:12px}
+.offline-step.existing .offline-icon{background:#6a6a6a}.offline-step small{display:block;margin-top:2px}.offline-time{text-align:right;white-space:nowrap}
 .phase,.strategy-target{display:flex;justify-content:space-between;gap:12px;align-items:center;background:#f2dfca;border-radius:10px;padding:10px;margin-bottom:9px}
 .phase span,.strategy-target span{font-size:12px}.strategy-target strong{font-size:18px}
 .strategy-step{display:grid;grid-template-columns:34px 1fr auto;gap:9px;align-items:start;padding:11px 0;border-bottom:1px solid #ead7c1}
@@ -29,7 +36,7 @@ textarea,pre{width:100%;min-height:140px;border:1px solid var(--line);border-rad
 details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,20px);background:#222;color:#fff;padding:11px 16px;border-radius:99px;opacity:0;transition:.2s;z-index:5;max-width:90%;text-align:center}#toast.show{opacity:1;transform:translate(-50%,0)}
 @media(max-width:520px){.resources{grid-template-columns:repeat(2,1fr)}.grid,.controls{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>Stämme Coach <small>v0.7.1</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
+<header><h1>Stämme Coach <small>v0.8</small></h1><div class="sub"><span id="village">Dorf</span> · Welt <span id="world">–</span> · Stand <span id="updated">–</span></div></header>
 <main>
 <div id="dataStatus" class="status"></div>
 <section class="card">
@@ -41,6 +48,21 @@ details summary{font-weight:750;cursor:pointer}#toast{position:fixed;left:50%;bo
 </section>
 <section class="card"><h2>Planer-Einstellungen</h2><div class="controls"><label>Dorfziel<select id="mode"><option value="off">OFF-Dorf</option><option value="def">DEF-Dorf</option><option value="balanced">Ausgeglichen</option></select></label><label>Strategie-Zeitraum: <span id="horizonValue">24 Std.</span><input id="horizon" type="range" min="6" max="48" step="6" value="24"></label>
 <label>Planlänge: <span id="strategyDepthValue">8 Schritte</span><input id="strategyDepth" type="range" min="3" max="12" step="1" value="8"></label></div></section>
+<section class="card">
+<h2>Offline-Planer</h2>
+<div class="controls">
+<label>Offline-Zeit: <span id="offlineHoursValue">8 Std.</span><input id="offlineHours" type="range" min="1" max="16" step="1" value="8"></label>
+<label>Sicherheitsreserve: <span id="offlineBufferValue">30 Min.</span><input id="offlineBuffer" type="range" min="0" max="120" step="15" value="30"></label>
+</div>
+<div class="offline-summary">
+<div><span>Geplante Rückkehr</span><strong id="offlineUntil">–</strong></div>
+<div><span>Queue-Abdeckung</span><strong id="offlineCoverage">–</strong></div>
+</div>
+<div id="offlineResult" class="status">–</div>
+<div id="offlineTimeline"></div>
+<p id="offlineWarning" class="muted"></p>
+<details><summary>Offline-Diagnose</summary><pre id="offlineDebug"></pre></details>
+</section>
 <section class="card"><div class="resources"><div class="resource"><span>Holz</span><strong id="wood">–</strong></div><div class="resource"><span>Lehm</span><strong id="clay">–</strong></div><div class="resource"><span>Eisen</span><strong id="iron">–</strong></div><div class="resource"><span>Speicher</span><strong id="storage">–</strong></div></div><p>Bevölkerung: <strong id="pop">–</strong></p></section>
 <section class="card strategy-card">
 <h2>Strategie-KI</h2>
